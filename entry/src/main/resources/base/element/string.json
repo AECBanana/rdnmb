@@ -1,0 +1,16 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "A岛匿名版客户端"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "A岛BBS主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "A岛BBS"
+    }
+  ]
+}

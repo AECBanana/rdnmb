@@ -1,0 +1,14 @@
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "description": "Please describe the basic information.",
+  "main": "",
+  "author": "",
+  "license": "",
+  "dependencies": {
+    "@ohos/axios": "^2.2.0",
+    "@ohasasugar/hp-richtext": "^3.1.0",
+    "@bigwinepot/cache_manager": "^1.0.2"
+  }
+}
+

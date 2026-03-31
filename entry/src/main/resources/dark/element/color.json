@@ -1,0 +1,44 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#000000"
+    },
+    {
+      "name": "primary",
+      "value": "#64B5F6"
+    },
+    {
+      "name": "background",
+      "value": "#121212"
+    },
+    {
+      "name": "card_background",
+      "value": "#1E1E1E"
+    },
+    {
+      "name": "text_primary",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "text_secondary",
+      "value": "#B0B0B0"
+    },
+    {
+      "name": "divider",
+      "value": "#333333"
+    },
+    {
+      "name": "reply_count_bg",
+      "value": "#1A3A5C"
+    },
+    {
+      "name": "image_placeholder",
+      "value": "#2A2A2A"
+    },
+    {
+      "name": "error",
+      "value": "#EF5350"
+    }
+  ]
+}
