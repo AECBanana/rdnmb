@@ -9,7 +9,7 @@ import { BusinessError } from "@kit.BasicServicesKit";
 
 @CustomDialog
 struct EditCookieDialog {
-  controller: CustomDialogController;
+  controller: CustomDialogController = new CustomDialogController({ builder: () => {}, customStyle: true });
   cookieRaw: CookieRaw = {
     cookieHash: "",
     cookieName: "",
@@ -63,7 +63,7 @@ struct EditCookieDialog {
 
 @CustomDialog
 struct ManualAddCookieDialog {
-  controller: CustomDialogController;
+  controller: CustomDialogController = new CustomDialogController({ builder: () => {}, customStyle: true });
   onConfirm?: (cookieHash: string, cookieName: string) => void;
   @State inputValue: string = "";
 
@@ -78,7 +78,7 @@ struct ManualAddCookieDialog {
         .fontColor($r("app.color.text_secondary"))
         .width("100%")
         .margin({ bottom: 4 })
-      Text('{"cookie":"W3%95g%CDXf...","name":"1oanseN"}')
+      Text('{"cookie":"...","name":"..."}')
         .fontSize(11)
         .fontColor($r("app.color.text_secondary"))
         .width("100%")
@@ -121,7 +121,7 @@ struct ManualAddCookieDialog {
       }.width("100%")
     }
     .width("100%")
-    .padding(20);
+    .padding({ left: 8, right: 8, top: 44, bottom: 8 });
   }
 
   static parseQRContent(qrContent: string): ManualAddCookieDialog.ParsedCookie {
@@ -380,7 +380,7 @@ struct SettingsPage {
   build() {
     Column() {
       Row() {
-        Button() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
           Text("← 返回")
             .fontSize(16)
             .fontColor($r("app.color.primary"))
@@ -400,8 +400,7 @@ struct SettingsPage {
           .visibility(Visibility.Hidden)
       }
       .width("100%")
-      .padding({ left: 8, right: 16, top: 12, bottom: 12 })
-      .backgroundColor($r("app.color.card_background"))
+      .padding({ left: 8, right: 8, top: 44, bottom: 8 })
       List() {
         ListItemGroup({ header: this.cacheHeader }) {
           ListItem() {
@@ -477,14 +476,6 @@ struct SettingsPage {
                         this.selectCookie(cookie.cookieHash);
                       });
                   }
-                  Button("编辑")
-                    .fontSize(12)
-                    .fontColor($r("app.color.primary"))
-                    .backgroundColor("transparent")
-                    .margin({ right: 8 })
-                    .onClick(() => {
-                      this.showEditDialog(cookie);
-                    })
                   Button("删除")
                     .fontSize(12)
                     .fontColor("#ff6b6b")
@@ -519,7 +510,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("AnoBBS Team")
+              Text("AeCw")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
@@ -535,6 +526,7 @@ struct SettingsPage {
     }
     .width("100%")
     .height("100%")
-    .backgroundColor($r("app.color.background"));
+    .backgroundColor($r("app.color.background"))
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

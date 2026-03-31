@@ -9,6 +9,18 @@
       "value": "#64B5F6"
     },
     {
+      "name": "primary_light",
+      "value": "#90CAF9"
+    },
+    {
+      "name": "primary_dark",
+      "value": "#42A5F5"
+    },
+    {
+      "name": "accent",
+      "value": "#FF7043"
+    },
+    {
       "name": "background",
       "value": "#121212"
     },
@@ -17,12 +29,20 @@
       "value": "#1E1E1E"
     },
     {
+      "name": "card_shadow",
+      "value": "#2A000000"
+    },
+    {
       "name": "text_primary",
       "value": "#FFFFFF"
     },
     {
       "name": "text_secondary",
       "value": "#B0B0B0"
+    },
+    {
+      "name": "text_hint",
+      "value": "#666666"
     },
     {
       "name": "divider",
@@ -39,6 +59,42 @@
     {
       "name": "error",
       "value": "#EF5350"
+    },
+    {
+      "name": "admin_badge_bg",
+      "value": "#3D1A1A"
+    },
+    {
+      "name": "admin_badge_text",
+      "value": "#FF8A80"
+    },
+    {
+      "name": "po_badge_bg",
+      "value": "#3D1A1A"
+    },
+    {
+      "name": "po_badge_text",
+      "value": "#FF8A80"
+    },
+    {
+      "name": "ripple",
+      "value": "#1A64B5F6"
+    },
+    {
+      "name": "overlay",
+      "value": "#80000000"
+    },
+    {
+      "name": "nav_background",
+      "value": "#1E1E1E"
+    },
+    {
+      "name": "nav_text_active",
+      "value": "#64B5F6"
+    },
+    {
+      "name": "nav_text_inactive",
+      "value": "#666666"
     }
   ]
 }

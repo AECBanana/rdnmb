@@ -33,10 +33,10 @@ export class ImageCacheManager {
       enableDiskCache: true,
       diskCachePath: cachePath,
       diskCacheFolder: 'image_cache',
-      maxMemorySize: 100 * 1024 * 1024,
-      maxDiskSize: 500 * 1024 * 1024,
-      defaultExpireTime: 7 * 24 * 60 * 60 * 1000,
-      cleanupInterval: 24 * 60 * 60 * 1000,
+      // maxMemorySize: 100 * 1024 * 1024,
+      // maxDiskSize: 500 * 1024 * 1024,
+      // defaultExpireTime: 7 * 24 * 60 * 60 * 1000,
+      // cleanupInterval: 24 * 60 * 60 * 1000,
       // strategy: MEMORY_THEN_DISK,
     });
     
@@ -88,7 +88,7 @@ export class ImageCacheManager {
       const response: http.HttpResponse = await httpRequest.request(url, {
         method: http.RequestMethod.GET,
         header: {
-          "User-Agent": "Mozilla/5.0",
+          "User-Agent": "AnoBBS-HarmonyOS/6.0",
         },
       });
 

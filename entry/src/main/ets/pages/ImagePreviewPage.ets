@@ -88,7 +88,7 @@ struct ImagePreviewPage {
   build() {
     Column() {
       Row() {
-        Button() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
           Text('关闭')
             .fontSize(16)
             .fontColor(Color.White)
@@ -99,13 +99,6 @@ struct ImagePreviewPage {
         })
 
         Blank()
-
-        if (this.isLoading) {
-          LoadingProgress()
-            .width(24)
-            .height(24)
-            .color(Color.White)
-        }
       }
       .width('100%')
       .padding({ left: 16, right: 16, top: 12, bottom: 12 })
@@ -198,6 +191,7 @@ struct ImagePreviewPage {
     }
     .width('100%')
     .height('100%')
+    .padding({ left: 8, right: 8, top: 44, bottom: 8 })
     .backgroundColor(Color.Black)
   }
 }

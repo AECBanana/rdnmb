@@ -9,6 +9,18 @@
       "value": "#2196F3"
     },
     {
+      "name": "primary_light",
+      "value": "#64B5F6"
+    },
+    {
+      "name": "primary_dark",
+      "value": "#1976D2"
+    },
+    {
+      "name": "accent",
+      "value": "#FF5722"
+    },
+    {
       "name": "background",
       "value": "#F5F5F5"
     },
@@ -17,12 +29,20 @@
       "value": "#FFFFFF"
     },
     {
+      "name": "card_shadow",
+      "value": "#1A000000"
+    },
+    {
       "name": "text_primary",
       "value": "#212121"
     },
     {
       "name": "text_secondary",
       "value": "#757575"
+    },
+    {
+      "name": "text_hint",
+      "value": "#9E9E9E"
     },
     {
       "name": "divider",
@@ -39,6 +59,50 @@
     {
       "name": "error",
       "value": "#F44336"
+    },
+    {
+      "name": "success",
+      "value": "#4CAF50"
+    },
+    {
+      "name": "warning",
+      "value": "#FF9800"
+    },
+    {
+      "name": "admin_badge_bg",
+      "value": "#FFF0F0"
+    },
+    {
+      "name": "admin_badge_text",
+      "value": "#FF6B6B"
+    },
+    {
+      "name": "po_badge_bg",
+      "value": "#FFF0F0"
+    },
+    {
+      "name": "po_badge_text",
+      "value": "#FF6B6B"
+    },
+    {
+      "name": "ripple",
+      "value": "#1A2196F3"
+    },
+    {
+      "name": "overlay",
+      "value": "#80000000"
+    },
+    {
+      "name": "nav_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "nav_text_active",
+      "value": "#2196F3"
+    },
+    {
+      "name": "nav_text_inactive",
+      "value": "#9E9E9E"
     }
   ]
 }

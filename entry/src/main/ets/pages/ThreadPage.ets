@@ -1,10 +1,10 @@
-import router from '@ohos.router';
-import { AnoBBSClient } from '../api/Client';
-import { ThreadPage, ThreadPageRaw, Post, PostRaw } from '../models/Post';
-import { ReplyItem } from '../components/ReplyItem';
-import { PostImage } from '../components/PostImage';
-import { RequiresLoginException } from '../models/Errors';
-import { HPRichTextV2, RichTextOptionModelV2 } from '@ohasasugar/hp-richtext';
+import router from "@ohos.router";
+import { AnoBBSClient } from "../api/Client";
+import { ThreadPage, ThreadPageRaw, Post, PostRaw } from "../models/Post";
+import { ReplyItem } from "../components/ReplyItem";
+import { PostImage } from "../components/PostImage";
+import { RequiresLoginException } from "../models/Errors";
+import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
 
 interface ThreadPageParams {
   threadId?: number;
@@ -16,7 +16,7 @@ struct ThreadDetailPage {
   @State thread: ThreadPage | null = null;
   @State isLoading: boolean = true;
   @State isLoadingMore: boolean = false;
-  @State errorMessage: string = '';
+  @State errorMessage: string = "";
   @State currentPage: number = 1;
   @State totalPages: number = 1;
   @State threadId: number = 0;
@@ -45,7 +45,7 @@ struct ThreadDetailPage {
       this.threadRichTextModel.richTextOption = {
         content: this.thread.content,
         baseFontSize: 15,
-        baseFontColor: '#333333'
+        baseFontColor: "#333333",
       };
     }
   }
@@ -56,7 +56,7 @@ struct ThreadDetailPage {
     } else {
       this.isLoadingMore = true;
     }
-    this.errorMessage = '';
+    this.errorMessage = "";
 
     try {
       const thread = await this.client.getThreadPage(threadId, page);
@@ -102,113 +102,122 @@ struct ThreadDetailPage {
     if (this.thread) {
       Column() {
         Row() {
+          Text(this.thread.userId)
+            .fontColor($r("app.color.text_secondary"))
+            .fontSize(12)
+            .fontWeight(FontWeight.Bold)
           Text(`No.${this.thread.id}`)
             .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
-
+            .fontColor($r("app.color.text_secondary"))
           Text(this.thread.createdAtText)
             .fontSize(12)
-            .fontColor($r('app.color.text_secondary'))
+            .fontColor($r("app.color.text_secondary"))
             .margin({ left: 8 })
-
-          if (this.thread.userId) {
-            Text('PO')
-              .fontSize(12)
-              .fontColor('#ff6b6b')
-              .backgroundColor('#fff0f0')
-              .padding({ left: 4, right: 4, top: 1, bottom: 1 })
-              .borderRadius(4)
-              .margin({ left: 8 })
-          }
-        }
-        .width('100%')
+          Text("PO")
+            .fontSize(12)
+            .fontColor("#ff6b6b")
+            .backgroundColor("#fff0f0")
+            .padding({ left: 4, right: 4, top: 1, bottom: 1 })
+            .borderRadius(4)
+            .margin({ left: 8 })
+        }.width("100%")
 
         if (this.thread.title) {
           Text(this.thread.title)
             .fontSize(18)
             .fontWeight(FontWeight.Bold)
-            .fontColor($r('app.color.text_primary'))
+            .fontColor($r("app.color.text_primary"))
             .margin({ top: 12 })
-            .width('100%')
+            .width("100%");
         }
-
-        Row() {
-          if (this.thread.thumbnailUrl) {
-            PostImage({ post: this.thread, imageWidth: 120, imageHeight: 120 })
-          }
-
+        Stack({ alignContent: Alignment.TopStart }) {
           Column() {
             HPRichTextV2({
-              richTextModel: this.threadRichTextModel
+              richTextModel: this.threadRichTextModel,
             })
           }
-          .layoutWeight(1)
-          .margin({ left: this.thread.thumbnailUrl ? 12 : 0 })
-        }
-        .width('100%')
-        .margin({ top: 12 })
-        .alignItems(VerticalAlign.Top)
+          .width("100%")
+          .padding({ left: this.thread.thumbnailUrl ? 132 : 0 })
 
+          if (this.thread.thumbnailUrl) {
+            PostImage({ post: this.thread, imageWidth: 120, imageHeight: 120 });
+          }
+        }
+        .width("100%")
+        .margin({ top: 12 })
         Row() {
           Text(`回复: ${this.thread.totalReplyCount}`)
             .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
-
+            .fontColor($r("app.color.text_secondary"))
           Blank()
-
           Text(`第 ${this.currentPage}/${this.totalPages} 页`)
             .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
+            .fontColor($r("app.color.text_secondary"))
         }
-        .width('100%')
+        .width("100%")
         .margin({ top: 16 })
       }
-      .width('100%')
+      .width("100%")
       .padding(16)
-      .backgroundColor($r('app.color.card_background'))
+      .backgroundColor($r("app.color.card_background"));
     }
   }
 
   build() {
     Column() {
       Row() {
-        Button() {
-          Text('← 返回')
-            .fontSize(16)
-            .fontColor($r('app.color.primary'))
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.arrow_left"))
+            .fontSize(24)
         }
-        .backgroundColor('transparent')
+        .backgroundColor("transparent")
+        .width(48)
+        .height(48)
         .onClick(() => {
           router.back();
         })
-
-        Text(this.thread ? `No.${this.thread.id}` : '加载中...')
+        Text(this.thread ? `No.${this.thread.id}` : "加载中...")
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
-          .fontColor($r('app.color.text_primary'))
+          .fontColor($r("app.color.text_primary"))
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-
-        Text('    ')
-          .fontSize(16)
-          .visibility(Visibility.Hidden)
+        Button() {
+          Text("回复")
+            .fontSize(16)
+            .padding(12)
+            .fontColor($r("app.color.text_primary"))
+        }
+        .backgroundColor(Color.Transparent)
+        .enabled(this.thread !== null)
+        .onClick(() => {
+          if (this.thread) {
+            router.pushUrl({
+              url: "pages/PostPage",
+              params: {
+                resto: String(this.thread.id),
+                threadId: String(this.thread.id),
+              },
+            });
+          }
+        })
       }
-      .width('100%')
-      .padding({ left: 8, right: 16, top: 12, bottom: 12 })
-      .backgroundColor($r('app.color.card_background'))
+      .width("100%")
+      .padding({ left: 8, right: 16, top: 44, bottom: 12 })
+      .backgroundColor($r("app.color.card_background"))
 
       if (this.errorMessage) {
         Row() {
           Text(this.errorMessage)
             .fontSize(14)
-            .fontColor($r('app.color.error'))
+            .fontColor($r("app.color.error"))
             .textAlign(TextAlign.Center)
-            .width('100%')
+            .width("100%")
         }
-        .width('100%')
+        .width("100%")
         .padding(16)
-        .backgroundColor($r('app.color.card_background'))
-        .margin({ top: 8 })
+        .backgroundColor($r("app.color.card_background"))
+        .margin({ top: 8 });
       }
 
       if (this.isLoading && !this.thread) {
@@ -216,60 +225,56 @@ struct ThreadDetailPage {
           LoadingProgress()
             .width(48)
             .height(48)
-            .color($r('app.color.primary'))
-
-          Text('加载中...')
+            .color($r("app.color.primary"))
+          Text("加载中...")
             .fontSize(14)
-            .fontColor($r('app.color.text_secondary'))
+            .fontColor($r("app.color.text_secondary"))
             .margin({ top: 16 })
         }
-        .width('100%')
+        .width("100%")
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else if (this.thread) {
         List({ scroller: this.scroller }) {
           ListItem() {
-            this.threadHeader();
+            this.threadHeader()
           }
-
           ForEach(this.thread.replies, (reply: Post) => {
             ListItem() {
-              ReplyItem({ reply: reply });
+              ReplyItem({ reply: reply })
             }
-            .margin({ top: 8, left: 12, right: 12 })
+            .margin({ top: 8, left: 12, right: 12 });
           })
 
           if (this.hasMoreReplies()) {
             ListItem() {
               Row() {
                 if (this.isLoadingMore) {
-                  LoadingProgress()
-                    .width(24)
-                    .height(24)
-                    .color($r('app.color.primary'))
+                  LoadingProgress().width(24).height(24).color($r("app.color.primary"));
                 } else {
-                  Button('加载更多回复')
+                  Button("加载更多回复")
                     .fontSize(14)
-                    .fontColor($r('app.color.primary'))
-                    .backgroundColor('transparent')
+                    .fontColor($r("app.color.primary"))
+                    .backgroundColor("transparent")
                     .onClick(() => {
                       this.loadThread(this.threadId, this.currentPage + 1);
-                    })
+                    });
                 }
               }
-              .width('100%')
+              .width("100%")
               .height(60)
               .justifyContent(FlexAlign.Center)
-            }
+            };
           }
         }
-        .width('100%')
+        .width("100%")
         .layoutWeight(1)
-        .backgroundColor($r('app.color.background'))
-        .padding({ bottom: 8 })
+        .backgroundColor($r("app.color.background"))
+        .padding({ bottom: 8 });
       }
     }
-    .width('100%')
-    .height('100%')
+    .width("100%")
+    .height("100%")
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
   }
 }

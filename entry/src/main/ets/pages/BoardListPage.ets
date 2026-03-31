@@ -60,7 +60,7 @@ struct BoardListPage {
   async loadBoardThreads(boardId: number, page: number = 1) {
     console.info(`[BoardListPage] loadBoardThreads: boardId=${boardId}, page=${page}`);
     const cached = await this.client.getBoardCache(boardId, page);
-    console.info(`[BoardListPage] getBoardCache result: ${JSON.stringify(cached)}`);
+    console.info(`[BoardListPage] getBoardCache result: ${cached !== null ? "found" : "null"}`);
     
     if (cached !== null && cached.threads && Array.isArray(cached.threads)) {
       console.info(`[BoardListPage] Using cached board threads`);
@@ -132,10 +132,12 @@ struct BoardListPage {
     Stack({ alignContent: Alignment.TopEnd }) {
       Column() {
         Row() {
-          Button() {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
             SymbolGlyph($r("sys.symbol.more")).fontSize(24)
           }
           .backgroundColor("transparent")
+          .width(48)
+          .height(48)
           .onClick(() => {
             this.showBoardDrawer = true;
           })
@@ -144,16 +146,13 @@ struct BoardListPage {
             .fontWeight(FontWeight.Bold)
             .fontColor($r("app.color.text_primary"))
             .layoutWeight(1)
-            .textAlign(TextAlign.Center)
+            .textAlign(TextAlign.Start)
           Row() {
-            Text(`第 ${this.currentPage} 页`)
-              .fontSize(14)
-              .fontColor($r("app.color.text_secondary"))
-            Button() {
-              SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(20)
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
             }
-            .width(32)
-            .height(32)
+            .width(48)
+            .height(48)
             .backgroundColor("transparent")
             .onClick(() => {
               this.showMoreMenu = !this.showMoreMenu;
@@ -161,8 +160,7 @@ struct BoardListPage {
           }
         }
         .width("100%")
-        .padding({ left: 8, right: 8, top: 12, bottom: 12 })
-        .backgroundColor($r("app.color.card_background"))
+        .padding({ left: 8, right: 8, top: 44, bottom: 8 })
 
         if (this.errorMessage) {
           Row() {
@@ -170,7 +168,7 @@ struct BoardListPage {
               .fontSize(14)
               .fontColor($r("app.color.error"))
               .textAlign(TextAlign.Center)
-              .width("90%")
+              .width("100%")
           }
           .width("100%")
           .padding(16)
@@ -243,6 +241,23 @@ struct BoardListPage {
       if (this.showMoreMenu) {
         Column() {
           Column() {
+            Row() {
+              SymbolGlyph($r("sys.symbol.plus"))
+                .fontSize(20)
+                .fontColor([Color.Black])
+              Text("发串")
+                .fontSize(16)
+                .fontColor(Color.Black)
+                .margin({ left: 12 })
+            }
+            .width("100%")
+            .padding(16)
+            .onClick(() => {
+              this.showMoreMenu = false;
+              router.pushUrl({
+                url: "pages/PostPage",
+              });
+            })
             Row() {
               SymbolGlyph($r("sys.symbol.gearshape"))
                 .fontSize(20)
@@ -405,6 +420,7 @@ struct BoardListPage {
       }
     }
     .width("100%")
-    .height("100%");
+    .height("100%")
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
   }
 }

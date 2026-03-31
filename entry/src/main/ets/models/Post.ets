@@ -3,7 +3,9 @@ export interface PostRaw {
   img?: string;
   ext?: string;
   now?: string;
+  user_id?: string;
   userid?: string;
+  user_hash?: string;
   name?: string;
   email?: string;
   title?: string;
@@ -59,6 +61,14 @@ export class Post {
   }
 
   get userId(): string {
+    const user_hash = this.raw.user_hash;
+    if (user_hash !== undefined && user_hash !== null && user_hash !== "") {
+      return user_hash;
+    }
+    const user_id = this.raw.user_id;
+    if (user_id !== undefined && user_id !== null && user_id !== "") {
+      return user_id;
+    }
     const userid = this.raw.userid;
     return userid !== undefined && userid !== null ? userid : "";
   }

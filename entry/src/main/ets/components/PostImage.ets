@@ -14,11 +14,11 @@ export struct PostImage {
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
 
-  aboutToAppear() {
+  aboutToAppear(): void {
     this.loadImage();
   }
 
-  async loadImage() {
+  async loadImage(): Promise<void> {
     const thumbnailUrl = this.post.thumbnailUrl;
     if (!thumbnailUrl) {
       return;
@@ -36,7 +36,7 @@ export struct PostImage {
     }
   }
 
-  openImagePreview() {
+  openImagePreview(): void {
     const fullUrl = this.post.attachmentUrl;
     if (fullUrl) {
       router.pushUrl({

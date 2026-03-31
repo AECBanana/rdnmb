@@ -2,7 +2,8 @@
   "src": [
     "pages/BoardListPage",
     "pages/ThreadPage",
+    "pages/SettingsPage",
     "pages/ImagePreviewPage",
-    "pages/SettingsPage"
+    "pages/PostPage"
   ]
 }

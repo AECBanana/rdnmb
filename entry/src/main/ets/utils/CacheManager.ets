@@ -59,7 +59,7 @@ export class CacheManager {
       maxMemorySize: 50 * 1024 * 1024,
       maxDiskSize: 200 * 1024 * 1024,
       defaultExpireTime: 5 * 60 * 1000,
-      cleanupInterval: 60 * 60 * 1000,
+      // cleanupInterval: 60 * 60 * 1000,
     });
     
     this.initialized = true;

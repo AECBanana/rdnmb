@@ -28,8 +28,8 @@ export interface RequestOptions {
 
 function createDefaultConfig(): ClientConfig {
   const config: ClientConfig = {
-    host: "www.nmbxd1.com",
-    userAgent: "anoBBS-HarmonyOS/1.1",
+    host: "nmbxd1.com",
+    userAgent: "AnoBBS-HarmonyOS/6.0",
     appid: "",
     userhash: "",
   };
@@ -73,7 +73,7 @@ export class AnoBBSClient {
     if (config) {
       this.config = {
         host: config.host.length > 0 ? config.host : "www.nmbxd1.com",
-        userAgent: config.userAgent.length > 0 ? config.userAgent : "AnoBBS-HarmonyOS/1.0",
+        userAgent: config.userAgent.length > 0 ? config.userAgent : "AnoBBS-HarmonyOS/6.0",
         appid: config.appid ? config.appid : "",
         userhash: config.userhash ? config.userhash : "",
       };
@@ -265,6 +265,213 @@ export class AnoBBSClient {
 
   async getBoardCache(boardId: number, page: number): Promise<BoardCacheData | null> {
     return await this.cacheManager.getBoardCache(boardId, page);
+  }
+
+  async postNewThread(
+    fid: string,
+    content: string,
+    name?: string,
+    email?: string,
+    title?: string,
+    water?: string,
+  ): Promise<string> {
+    if (!(await this.hasCookie())) {
+      throw new RequiresLoginException();
+    }
+
+    await this.waitForRateLimit();
+    const cookieHeader: string = await this.getCookieHeader();
+    const url = `${this.baseUrl}Home/Forum/doPostThread.html`;
+
+    console.info(`[AnoBBS] Posting new thread to fid=${fid}`);
+
+    const boundary: string = `----WebKitFormBoundary${Date.now().toString(16)}`;
+    let body: string = "";
+
+    body = body + `--${boundary}\r\n`;
+    body = body + `Content-Disposition: form-data; name="fid"\r\n\r\n`;
+    body = body + `${fid}\r\n`;
+
+    if (name && name.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="name"\r\n\r\n`;
+      body = body + `${name}\r\n`;
+    }
+
+    if (email && email.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="email"\r\n\r\n`;
+      body = body + `${email}\r\n`;
+    }
+
+    if (title && title.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="title"\r\n\r\n`;
+      body = body + `${title}\r\n`;
+    }
+
+    if (content && content.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="content"\r\n\r\n`;
+      body = body + `${content}\r\n`;
+    }
+
+    if (water && water.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="water"\r\n\r\n`;
+      body = body + `${water}\r\n`;
+    }
+
+    body = body + `--${boundary}--\r\n`;
+
+    return await this.postMultipart(url, body, boundary, cookieHeader);
+  }
+
+  async postReply(
+    resto: string,
+    content: string,
+    name?: string,
+    email?: string,
+    title?: string,
+    water?: string,
+  ): Promise<string> {
+    if (!(await this.hasCookie())) {
+      throw new RequiresLoginException();
+    }
+
+    await this.waitForRateLimit();
+    const cookieHeader: string = await this.getCookieHeader();
+    const url = `${this.baseUrl}Home/Forum/doReplyThread.html`;
+
+    console.info(`[AnoBBS] Posting reply to thread ${resto}`);
+
+    const boundary: string = `----WebKitFormBoundary${Date.now().toString(16)}`;
+    let body: string = "";
+
+    body = body + `--${boundary}\r\n`;
+    body = body + `Content-Disposition: form-data; name="resto"\r\n\r\n`;
+    body = body + `${resto}\r\n`;
+
+    if (name && name.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="name"\r\n\r\n`;
+      body = body + `${name}\r\n`;
+    }
+
+    if (email && email.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="email"\r\n\r\n`;
+      body = body + `${email}\r\n`;
+    }
+
+    if (title && title.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="title"\r\n\r\n`;
+      body = body + `${title}\r\n`;
+    }
+
+    if (content && content.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="content"\r\n\r\n`;
+      body = body + `${content}\r\n`;
+    }
+
+    if (water && water.length > 0) {
+      body = body + `--${boundary}\r\n`;
+      body = body + `Content-Disposition: form-data; name="water"\r\n\r\n`;
+      body = body + `${water}\r\n`;
+    }
+
+    body = body + `--${boundary}--\r\n`;
+
+    return await this.postMultipart(url, body, boundary, cookieHeader);
+  }
+
+  private async postMultipart(
+    url: string,
+    body: string,
+    boundary: string,
+    cookieHeader: string,
+  ): Promise<string> {
+    const httpRequest = http.createHttp();
+    try {
+      console.info(`[AnoBBS] ========== POST REQUEST START ==========`);
+      console.info(`[AnoBBS] Request URL: ${url}`);
+
+      const headerOptions: ESObject = {
+        "User-Agent": this.config.userAgent,
+        Accept: "*/*",
+        "Accept-Language": "zh-cn",
+        "Content-Type": `multipart/form-data; boundary=${boundary}`,
+        Connection: "keep-alive",
+        Cookie: cookieHeader,
+      };
+
+      const response: http.HttpResponse = await httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: headerOptions,
+        extraData: body,
+        connectTimeout: 20000,
+        readTimeout: 20000,
+      });
+
+      console.info(`[AnoBBS] Response status: ${response.responseCode}`);
+
+      const responseBody: string = response.result as string;
+      console.info(`[AnoBBS] Response body: ${responseBody.substring(0, 500)}`);
+      console.info(`[AnoBBS] ========== POST REQUEST END ==========`);
+
+      if (response.responseCode === 200) {
+        const successMatch: RegExpMatchArray | null = responseBody.match(
+          /<p class="success"[^>]*>([^<]+)<\/p>/,
+        );
+        if (successMatch !== null && successMatch.length > 1) {
+          const successMsg: string = successMatch[1];
+          console.info(`[AnoBBS] Post success: ${successMsg}`);
+          const idMatch: RegExpMatchArray | null = responseBody.match(/t\/(\d+)/);
+          if (idMatch !== null && idMatch.length > 1) {
+            return idMatch[1];
+          }
+          return "";
+        }
+
+        const errorMatch: RegExpMatchArray | null = responseBody.match(
+          /<p class="error"[^>]*>([^<]+)<\/p>/,
+        );
+        if (errorMatch !== null && errorMatch.length > 1) {
+          const errorMsg: string = errorMatch[1];
+          console.error(`[AnoBBS] Post failed: ${errorMsg}`);
+          throw new ApiException(errorMsg);
+        }
+
+        if (responseBody.indexOf("成功") !== -1) {
+          console.info(`[AnoBBS] Post appears successful`);
+          const idMatch: RegExpMatchArray | null = responseBody.match(/t\/(\d+)/);
+          if (idMatch !== null && idMatch.length > 1) {
+            return idMatch[1];
+          }
+          return "";
+        }
+
+        throw new NetworkException(`发串失败: 未知响应`);
+      }
+
+      throw new NetworkException(`发串失败: HTTP ${response.responseCode}`);
+    } catch (error) {
+      if (error instanceof RequiresLoginException) {
+        throw error;
+      }
+      if (error instanceof ApiException) {
+        throw error;
+      }
+
+      const err = error as Error;
+      const errMsg: string = err.message ? err.message : "Unknown error";
+      console.error(`[AnoBBS] Post error: ${errMsg}`);
+      throw new NetworkException(`发串失败: ${errMsg}`);
+    } finally {
+      httpRequest.destroy();
+    }
   }
 
   private async waitForRateLimit(): Promise<void> {
