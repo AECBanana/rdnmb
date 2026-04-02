@@ -1,65 +1,11 @@
-import router from "@ohos.router";
 import { common } from "@kit.AbilityKit";
 import { ImageCacheManager } from "../utils/ImageCacheManager";
 import { CookieManager } from "../utils/CookieManager";
-import { Cookie, CookieRaw } from "../models/Cookie";
+import { Cookie } from "../models/Cookie";
 import { promptAction } from "@kit.ArkUI";
 import { scanBarcode, scanCore } from "@kit.ScanKit";
 import { BusinessError } from "@kit.BasicServicesKit";
 
-@CustomDialog
-struct EditCookieDialog {
-  controller: CustomDialogController = new CustomDialogController({ builder: () => {}, customStyle: true });
-  cookieRaw: CookieRaw = {
-    cookieHash: "",
-    cookieName: "",
-    cookieDisplayName: "",
-    lastUsedAt: 0,
-    domain: "",
-  };
-  onConfirm?: (displayName: string) => void;
-  @State displayName: string = "";
-
-  aboutToAppear() {
-    this.displayName = this.cookieRaw.cookieDisplayName;
-  }
-
-  build() {
-    Column() {
-      Text("编辑饼干名称")
-        .fontSize(18)
-        .fontWeight(FontWeight.Bold)
-        .margin({ bottom: 20 })
-      TextInput({ text: this.displayName, placeholder: "显示名称" })
-        .width("100%")
-        .height(40)
-        .margin({ bottom: 20 })
-        .onChange((value: string) => {
-          this.displayName = value;
-        })
-      Row() {
-        Button("取消")
-          .width(100)
-          .backgroundColor("#f0f0f0")
-          .fontColor($r("app.color.text_primary"))
-          .onClick(() => {
-            this.controller.close();
-          })
-        Blank()
-        Button("保存")
-          .width(100)
-          .onClick(() => {
-            if (this.onConfirm) {
-              this.onConfirm(this.displayName);
-            }
-            this.controller.close();
-          })
-      }.width("100%")
-    }
-    .width("100%")
-    .padding(20);
-  }
-}
 
 @CustomDialog
 struct ManualAddCookieDialog {
@@ -103,7 +49,11 @@ struct ManualAddCookieDialog {
           .width(100)
           .onClick(() => {
             if (this.inputValue.trim().length === 0) {
-              promptAction.showToast({ message: "请输入内容" });
+              try {
+                this.getUIContext().getPromptAction().showToast({ message: "请输入内容" });
+              } catch (error) {
+                // TODO: Implement error handling.
+              }
               return;
             }
             const parsed: ManualAddCookieDialog.ParsedCookie = ManualAddCookieDialog.parseQRContent(
@@ -115,7 +65,11 @@ struct ManualAddCookieDialog {
               }
               this.controller.close();
             } else {
-              promptAction.showToast({ message: "未识别到有效的饼干信息" });
+              try {
+                this.getUIContext().getPromptAction().showToast({ message: "请输入有效的饼干信息 es:{\"cookie\":\"\",\"name\":\"\"}" })
+              }catch ( error){
+
+              }
             }
           })
       }.width("100%")
@@ -173,7 +127,6 @@ struct SettingsPage {
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
-  private editDialogController: CustomDialogController | null = null;
   private manualAddDialogController: CustomDialogController | null = null;
 
   aboutToAppear() {
@@ -194,7 +147,11 @@ struct SettingsPage {
   async clearImageCache() {
     this.imageCacheManager.clearCache();
     this.cacheSize = "0 MB";
-    promptAction.showToast({ message: "缓存已清除" });
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: "缓存已清空..." })
+    } catch (error) {
+      // TODO: Implement error handling.
+    }
   }
 
   async addCookie(hash: string, cookieName: string) {
@@ -205,35 +162,34 @@ struct SettingsPage {
       finalDisplayName,
     );
     this.loadCookies();
-    promptAction.showToast({ message: "饼干添加成功" });
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: "饼干添加成功" })
+    } catch (error) {
+      // TODO: Implement error handling.
+    }
   }
 
   async deleteCookie(cookieHash: string) {
     await this.cookieManager.deleteCookie(cookieHash);
     this.loadCookies();
-    promptAction.showToast({ message: "饼干已删除" });
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: "饼干已删除" })
+    } catch (error) {
+      // TODO: Implement error handling.
+    }
   }
 
   async selectCookie(cookieHash: string) {
     await this.cookieManager.setSelectedCookie(cookieHash);
     this.selectedCookieHash = cookieHash;
-    promptAction.showToast({ message: "已切换饼干" });
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: "已切换饼干" })
+    } catch (error) {
+      // TODO: Implement error handling.
+    }
   }
 
-  showEditDialog(cookie: Cookie) {
-    this.editDialogController = new CustomDialogController({
-      builder: EditCookieDialog({
-        cookieRaw: cookie.raw,
-        onConfirm: (displayName: string) => {
-          this.updateCookieDisplayName(cookie.cookieHash, displayName);
-        },
-      }),
-      customStyle: true,
-      alignment: DialogAlignment.Bottom,
-      backgroundColor: $r("app.color.card_background"),
-    });
-    this.editDialogController.open();
-  }
+
 
   showManualAddDialog() {
     this.manualAddDialogController = new CustomDialogController({
@@ -249,12 +205,7 @@ struct SettingsPage {
     this.manualAddDialogController.open();
   }
 
-  async updateCookieDisplayName(cookieHash: string, displayName: string) {
-    const finalDisplayName: string = displayName.length > 0 ? displayName : "匿名";
-    await this.cookieManager.updateCookieDisplayName(cookieHash, finalDisplayName);
-    this.loadCookies();
-    promptAction.showToast({ message: "饼干名称已更新" });
-  }
+
 
   async scanQRCodeAndAdd() {
     try {
@@ -315,8 +266,13 @@ struct SettingsPage {
     if (cookieHash.length > 0) {
       this.addCookie(cookieHash, cookieName);
     } else {
-      promptAction.showToast({ message: "未识别到有效的饼干信息" });
+      try {
+        this.getUIContext().getPromptAction().showToast({ message: "未识别到有效的饼干信息" })
+      } catch (error) {
+        // TODO: Implement error handling.
+      }
     }
+
   }
 
   stringToHexBytes(str: string): string {
@@ -381,13 +337,13 @@ struct SettingsPage {
     Column() {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          Text("← 返回")
-            .fontSize(16)
-            .fontColor($r("app.color.primary"))
+          SymbolGlyph($r("sys.symbol.arrow_left"))
         }
         .backgroundColor("transparent")
+        .width(48)
+        .height(48)
         .onClick(() => {
-          router.back();
+          this.getUIContext().getRouter().back();
         })
         Text("设置")
           .fontSize(18)
@@ -520,7 +476,10 @@ struct SettingsPage {
         }
       }
       .width("100%")
+      .height("auto")
       .layoutWeight(1)
+      .chainAnimation(true)
+      .edgeEffect(EdgeEffect.Spring,{ alwaysEnabled: true })
       .backgroundColor($r("app.color.background"))
       .divider({ strokeWidth: 1, color: $r("app.color.divider") })
     }

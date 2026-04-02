@@ -8,7 +8,12 @@ import {
   GatekeptException,
   GatekeptExceptionParams,
 } from "../models/Errors";
-import { CacheManager, BoardCacheData } from "../utils/CacheManager";
+import {
+  CacheManager,
+  BoardCacheData,
+  ThreadCacheData,
+  ThreadReadPosition,
+} from "../utils/CacheManager";
 import { CookieManager, CookieInfo } from "../utils/CookieManager";
 
 export type LoginPolicy = "enforce" | "when_has_cookie" | "when_required" | "always_no";
@@ -28,7 +33,7 @@ export interface RequestOptions {
 
 function createDefaultConfig(): ClientConfig {
   const config: ClientConfig = {
-    host: "nmbxd1.com",
+    host: "www.nmbxd1.com",
     userAgent: "AnoBBS-HarmonyOS/6.0",
     appid: "",
     userhash: "",
@@ -225,7 +230,18 @@ export class AnoBBSClient {
     threadId: number,
     pageNumber?: number,
     options?: RequestOptions,
+    forceRefresh?: boolean,
   ): Promise<ThreadPage> {
+    const page = pageNumber !== undefined ? pageNumber : 1;
+
+    if (forceRefresh !== true) {
+      const cached: ThreadCacheData | null = await this.cacheManager.getThreadCache(threadId, page);
+      if (cached !== null) {
+        console.info(`[AnoBBS] Using cached thread threadId=${threadId} page=${page}`);
+        return new ThreadPage(cached.threadRaw);
+      }
+    }
+
     await this.waitForRateLimit();
     const defaultOpts = createDefaultOptions();
     const opts = options ? mergeOptions(defaultOpts, options) : defaultOpts;
@@ -235,8 +251,6 @@ export class AnoBBSClient {
     if (loginPolicy === "enforce" && !(await this.hasCookie())) {
       throw new RequiresLoginException();
     }
-
-    const page = pageNumber !== undefined ? pageNumber : 1;
 
     if (page > threadGatekeeperPageNumber && !(await this.hasCookie())) {
       const excParams: GatekeptExceptionParams = {
@@ -255,8 +269,9 @@ export class AnoBBSClient {
     }
 
     const data: ESObject = await this.getJson("Api/thread", params);
-
-    return new ThreadPage(data as ThreadPageRaw);
+    const thread = new ThreadPage(data as ThreadPageRaw);
+    await this.cacheManager.setThreadCache(threadId, page, thread);
+    return thread;
   }
 
   async clearBoardCache(boardId: number): Promise<void> {
@@ -265,6 +280,22 @@ export class AnoBBSClient {
 
   async getBoardCache(boardId: number, page: number): Promise<BoardCacheData | null> {
     return await this.cacheManager.getBoardCache(boardId, page);
+  }
+
+  async clearThreadCache(threadId: number): Promise<void> {
+    await this.cacheManager.clearThreadCache(threadId);
+  }
+
+  async getThreadCache(threadId: number, page: number): Promise<ThreadCacheData | null> {
+    return await this.cacheManager.getThreadCache(threadId, page);
+  }
+
+  async setThreadReadPosition(threadId: number, page: number, lastReplyId: number): Promise<void> {
+    await this.cacheManager.setThreadReadPosition(threadId, page, lastReplyId);
+  }
+
+  async getThreadReadPosition(threadId: number): Promise<ThreadReadPosition | null> {
+    return await this.cacheManager.getThreadReadPosition(threadId);
   }
 
   async postNewThread(
@@ -334,6 +365,7 @@ export class AnoBBSClient {
     email?: string,
     title?: string,
     water?: string,
+    imageFilePath?: string,
   ): Promise<string> {
     if (!(await this.hasCookie())) {
       throw new RequiresLoginException();
@@ -344,6 +376,20 @@ export class AnoBBSClient {
     const url = `${this.baseUrl}Home/Forum/doReplyThread.html`;
 
     console.info(`[AnoBBS] Posting reply to thread ${resto}`);
+
+    if (imageFilePath && imageFilePath.length > 0) {
+      return await this.postMultipartWithImage(
+        url,
+        resto,
+        content,
+        name,
+        email,
+        title,
+        water,
+        imageFilePath,
+        cookieHeader,
+      );
+    }
 
     const boundary: string = `----WebKitFormBoundary${Date.now().toString(16)}`;
     let body: string = "";
@@ -385,6 +431,137 @@ export class AnoBBSClient {
     body = body + `--${boundary}--\r\n`;
 
     return await this.postMultipart(url, body, boundary, cookieHeader);
+  }
+
+  private async postMultipartWithImage(
+    url: string,
+    resto: string,
+    content: string,
+    name?: string,
+    email?: string,
+    title?: string,
+    water?: string,
+    imageFilePath?: string,
+    cookieHeader?: string,
+  ): Promise<string> {
+    const httpRequest = http.createHttp();
+    try {
+      console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE START ==========`);
+      console.info(`[AnoBBS] Request URL: ${url}`);
+      console.info(`[AnoBBS] Image path: ${imageFilePath}`);
+
+      const formDataList: http.MultiFormData[] = [];
+
+      formDataList.push({
+        name: "resto",
+        contentType: "text/plain",
+        data: resto,
+      });
+
+      if (name && name.length > 0) {
+        formDataList.push({
+          name: "name",
+          contentType: "text/plain",
+          data: name,
+        });
+      }
+
+      if (email && email.length > 0) {
+        formDataList.push({
+          name: "email",
+          contentType: "text/plain",
+          data: email,
+        });
+      }
+
+      if (title && title.length > 0) {
+        formDataList.push({
+          name: "title",
+          contentType: "text/plain",
+          data: title,
+        });
+      }
+
+      if (content && content.length > 0) {
+        formDataList.push({
+          name: "content",
+          contentType: "text/plain",
+          data: content,
+        });
+      }
+
+      if (water && water.length > 0) {
+        formDataList.push({
+          name: "water",
+          contentType: "text/plain",
+          data: water,
+        });
+      }
+
+      if (imageFilePath && imageFilePath.length > 0) {
+        const fileName: string = imageFilePath.split("/").pop() || "image.jpg";
+        formDataList.push({
+          name: "image",
+          contentType: "image/jpeg",
+          filePath: imageFilePath,
+          remoteFileName: fileName,
+        });
+      }
+
+      const headerOptions: ESObject = {
+        "User-Agent": this.config.userAgent,
+        Accept: "*/*",
+        "Accept-Language": "zh-cn",
+        Connection: "keep-alive",
+        Cookie: cookieHeader,
+      };
+
+      const response: http.HttpResponse = await httpRequest.request(url, {
+        method: http.RequestMethod.POST,
+        header: headerOptions,
+        multiFormDataList: formDataList,
+        connectTimeout: 60000,
+        readTimeout: 60000,
+      });
+
+      console.info(`[AnoBBS] Response status: ${response.responseCode}`);
+
+      const responseBody: string = response.result as string;
+      console.info(`[AnoBBS] Response body: ${responseBody.substring(0, 500)}`);
+      console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE END ==========`);
+
+      if (response.responseCode === 200 || response.responseCode === 302) {
+        const redirectLocation: string = response.header["location"] as string;
+        if (redirectLocation && redirectLocation.length > 0) {
+          const match: RegExpMatchArray | null = redirectLocation.match(/\/t\/(\d+)/);
+          if (match && match.length > 1) {
+            return match[1];
+          }
+        }
+
+        const idMatch: RegExpMatchArray | null = responseBody.match(/No\.(\d+)/);
+        if (idMatch && idMatch.length > 1) {
+          return idMatch[1];
+        }
+
+        return "success";
+      } else if (response.responseCode === 403) {
+        throw new RequiresLoginException();
+      } else {
+        throw new ApiException(`HTTP error: ${response.responseCode}`);
+      }
+    } catch (error) {
+      console.error(`[AnoBBS] POST request with image error: ${error}`);
+      if (error instanceof RequiresLoginException) {
+        throw new RequiresLoginException();
+      }
+      if (error instanceof ApiException) {
+        throw new ApiException(error.rawText);
+      }
+      throw new NetworkException(`Network error: ${JSON.stringify(error)}`);
+    } finally {
+      httpRequest.destroy();
+    }
   }
 
   private async postMultipart(
@@ -459,10 +636,10 @@ export class AnoBBSClient {
       throw new NetworkException(`发串失败: HTTP ${response.responseCode}`);
     } catch (error) {
       if (error instanceof RequiresLoginException) {
-        throw error;
+        throw new RequiresLoginException();
       }
       if (error instanceof ApiException) {
-        throw error;
+        throw new ApiException(error.rawText);
       }
 
       const err = error as Error;
@@ -556,13 +733,13 @@ export class AnoBBSClient {
       return data;
     } catch (error) {
       if (error instanceof RequiresLoginException) {
-        throw error;
+        throw new RequiresLoginException();
       }
       if (error instanceof ApiException) {
-        throw error;
+        throw new ApiException(error.rawText);
       }
       if (error instanceof GatekeptException) {
-        throw error;
+        throw new GatekeptException(error.params);
       }
 
       const err = error as Error;

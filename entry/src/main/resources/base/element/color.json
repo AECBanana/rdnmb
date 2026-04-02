@@ -6,15 +6,15 @@
     },
     {
       "name": "primary",
-      "value": "#2196F3"
+      "value": "#FFB15E25"
     },
     {
       "name": "primary_light",
-      "value": "#64B5F6"
+      "value": "#FFF1A36A"
     },
     {
       "name": "primary_dark",
-      "value": "#1976D2"
+      "value": "#FF753F1A"
     },
     {
       "name": "accent",
@@ -50,7 +50,7 @@
     },
     {
       "name": "reply_count_bg",
-      "value": "#E3F2FD"
+      "value": "#FFFDE3E3"
     },
     {
       "name": "image_placeholder",
@@ -98,7 +98,7 @@
     },
     {
       "name": "nav_text_active",
-      "value": "#2196F3"
+      "value": "#FFB15E25"
     },
     {
       "name": "nav_text_inactive",

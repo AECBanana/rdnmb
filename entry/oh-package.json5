@@ -1,14 +1,13 @@
 {
   "name": "entry",
   "version": "1.0.0",
-  "description": "Please describe the basic information.",
+  "description": "R岛为XD揭示板、X岛揭示板（X岛）的鸿蒙版客户端，这里是以宅文化为主题似Futaba贴图风格的AcFun讨论版，在这里需要进行注册便可以尽情发文!",
   "main": "",
   "author": "",
   "license": "",
   "dependencies": {
-    "@ohos/axios": "^2.2.0",
     "@ohasasugar/hp-richtext": "^3.1.0",
-    "@bigwinepot/cache_manager": "^1.0.2"
+    "@bigwinepot/cache_manager": "^1.0.2",
+    "@ohos/photoview": "2.1.1"
   }
 }
-

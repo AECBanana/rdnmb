@@ -12,6 +12,8 @@ export interface GatekeptExceptionParams {
 }
 
 export class GatekeptException extends Error {
+  params: GatekeptExceptionParams;
+
   constructor(params: GatekeptExceptionParams) {
     let fullMessage = "检测到卡页";
     const extraMessages: string[] = [];
@@ -31,6 +33,7 @@ export class GatekeptException extends Error {
       fullMessage += ': ' + params.message;
     }
     super(fullMessage);
+    this.params = params;
   }
 }
 

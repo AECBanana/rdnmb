@@ -2,15 +2,15 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "A岛匿名版客户端"
+      "value": "R岛"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "A岛BBS主入口"
+      "value": "R岛主入口"
     },
     {
       "name": "EntryAbility_label",
-      "value": "A岛BBS"
+      "value": "R岛"
     }
   ]
 }

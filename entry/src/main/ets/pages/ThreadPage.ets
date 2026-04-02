@@ -1,77 +1,166 @@
 import router from "@ohos.router";
 import { AnoBBSClient } from "../api/Client";
-import { ThreadPage, ThreadPageRaw, Post, PostRaw } from "../models/Post";
+import { ThreadPage, Post } from "../models/Post";
 import { ReplyItem } from "../components/ReplyItem";
 import { PostImage } from "../components/PostImage";
 import { RequiresLoginException } from "../models/Errors";
 import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
+import { ThreadReadPosition } from "../utils/CacheManager";
+import { CacheManager } from "../utils/CacheManager";
+import { ReplySheet } from "../components/ReplySheet";
+import common from "@ohos.app.ability.common";
 
 interface ThreadPageParams {
   threadId?: number;
+}
+
+interface LinkPressEvent {
+  href?: string;
+  text?: string;
 }
 
 @Entry
 @Component
 struct ThreadDetailPage {
   @State thread: ThreadPage | null = null;
+  @State replies: Post[] = [];
   @State isLoading: boolean = true;
   @State isLoadingMore: boolean = false;
+  @State isLoadingPrevious: boolean = false;
+  @State isRefreshing: boolean = false;
   @State errorMessage: string = "";
   @State currentPage: number = 1;
   @State totalPages: number = 1;
+  @State minLoadedPage: number = 1;
+  @State maxLoadedPage: number = 1;
   @State threadId: number = 0;
   @State replyCount: number = 0;
+  @State savedReadPage: number = 1;
+  @State savedLastReplyId: number = 0;
+  @State shouldScrollToReply: boolean = false;
+  @State showReplySheet: boolean = false;
+  @State replyToId: string = "";
 
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
   private static readonly REPLIES_PER_PAGE: number = 20;
   private threadRichTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
+  private visibleEndIndex: number = 0;
+  private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear() {
     const params = router.getParams() as ThreadPageParams;
     if (params && params.threadId) {
       this.threadId = params.threadId;
     }
+    this.threadRichTextModel.richTextOption = {
+      content: "",
+      baseFontSize: $r("app.float.content_text_font"),
+      baseFontColor: "#333333",
+    };
+    this.threadRichTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
+      console.info(`[ThreadPage] Link pressed: ${JSON.stringify(e)}`);
+      let url: string | undefined = undefined;
+      if (e !== null && e !== undefined) {
+        if (e.href !== undefined) {
+          url = e.href;
+        } else if (e.text !== undefined) {
+          const text: string = e.text;
+          const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
+          if (urlMatch !== null && urlMatch.length > 0) {
+            url = urlMatch[0];
+          }
+        }
+      }
+      if (url !== undefined) {
+        this.openLink(url);
+      }
+      return e;
+    };
   }
 
-  onPageShow() {
+  processContent(rawContent: string): string {
+    let content: string = rawContent.replace(/\\n/g, "").replace(/\n/g, "");
+    content = this.convertUrlsToLinks(content);
+    return content;
+  }
+
+  convertUrlsToLinks(content: string): string {
+    const urlPattern: RegExp = /(https?:\/\/[^\s<>"']+)/g;
+    return content.replace(urlPattern, '<a href="$1">$1</a>');
+  }
+
+  async openLink(url: string) {
+    try {
+      await this.context.openLink(url);
+      console.info(`[ThreadPage] Opened link: ${url}`);
+    } catch (error) {
+      console.error(`[ThreadPage] Failed to open link: ${error}`);
+    }
+  }
+
+  async onPageShow() {
     if (this.threadId > 0 && this.thread === null) {
-      this.loadThread(this.threadId, 1);
+      const position: ThreadReadPosition | null = await this.client.getThreadReadPosition(
+        this.threadId,
+      );
+      if (position !== null) {
+        this.savedReadPage = position.page;
+        this.savedLastReplyId = position.lastReplyId;
+        this.shouldScrollToReply = position.lastReplyId > 0;
+        console.info(
+          `[ThreadPage] Restored read position: page ${position.page}, lastReplyId ${position.lastReplyId}`,
+        );
+      } else {
+        this.savedReadPage = 1;
+        this.savedLastReplyId = 0;
+        this.shouldScrollToReply = false;
+      }
+      this.loadThread(this.threadId, this.savedReadPage);
+    }
+  }
+
+  aboutToDisappear() {
+    if (this.threadId > 0 && this.replies.length > 0 && this.visibleEndIndex > 0) {
+      const headerOffset: number = this.isLoadingPrevious ? 2 : 1;
+      const replyIndex: number = this.visibleEndIndex - headerOffset;
+      if (replyIndex >= 0 && replyIndex < this.replies.length) {
+        const visibleReply: Post = this.replies[replyIndex];
+        const replyId: number = visibleReply.id;
+        const replyPage: number =
+          this.minLoadedPage + Math.floor(replyIndex / ThreadDetailPage.REPLIES_PER_PAGE);
+        this.client.setThreadReadPosition(this.threadId, replyPage, replyId);
+        console.info(`[ThreadPage] Saved read position: page ${replyPage}, lastReplyId ${replyId}`);
+      }
     }
   }
 
   updateThreadRichTextModel(): void {
     if (this.thread) {
+      let displayContent: string = this.processContent(this.thread.content);
       this.threadRichTextModel.richTextOption = {
-        content: this.thread.content,
-        baseFontSize: 15,
+        content: displayContent,
+        baseFontSize: $r("app.float.content_text_font"),
         baseFontColor: "#333333",
       };
     }
   }
 
   async loadThread(threadId: number, page: number) {
-    if (page === 1) {
-      this.isLoading = true;
-    } else {
-      this.isLoadingMore = true;
-    }
+    this.isLoading = true;
     this.errorMessage = "";
 
     try {
       const thread = await this.client.getThreadPage(threadId, page);
-      if (page === 1) {
-        this.thread = thread;
-        this.calculateTotalPages(thread.totalReplyCount);
-        this.updateThreadRichTextModel();
-      } else if (this.thread !== null) {
-        const newReplies = thread.raw.Replies;
-        if (newReplies !== undefined && newReplies !== null) {
-          this.thread.addReplies(newReplies);
-          this.replyCount = this.thread.replyCount;
-        }
-      }
+      this.thread = thread;
+      this.replies = thread.replies;
+      this.calculateTotalPages(thread.totalReplyCount);
+      this.updateThreadRichTextModel();
       this.currentPage = page;
+      this.minLoadedPage = page;
+      this.maxLoadedPage = page;
+      this.replyCount = this.replies.length;
+      this.visibleEndIndex = this.replies.length;
     } catch (error) {
       if (error instanceof RequiresLoginException) {
         this.errorMessage = "需要饼干才能访问，请在设置中添加饼干";
@@ -81,8 +170,123 @@ struct ThreadDetailPage {
       }
     } finally {
       this.isLoading = false;
+      if (this.shouldScrollToReply && this.savedLastReplyId > 0) {
+        this.scrollToReply(this.savedLastReplyId);
+        this.shouldScrollToReply = false;
+      }
+    }
+  }
+
+  async refreshThread() {
+    if (this.thread === null) {
+      return;
+    }
+    this.isRefreshing = true;
+
+    try {
+      const thread = await this.client.getThreadPage(
+        this.threadId,
+        this.maxLoadedPage,
+        undefined,
+        true,
+      );
+      this.thread = thread;
+      this.calculateTotalPages(thread.totalReplyCount);
+      this.updateThreadRichTextModel();
+      this.replies = thread.replies;
+      this.minLoadedPage = this.maxLoadedPage;
+      this.replyCount = this.replies.length;
+      console.info(`[ThreadPage] Refreshed thread ${this.threadId}`);
+    } catch (error) {
+      console.error(`[ThreadPage] Failed to refresh thread: ${error}`);
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  async loadPreviousPage() {
+    if (this.minLoadedPage <= 1 || this.isLoadingPrevious || this.thread === null) {
+      return;
+    }
+    this.isLoadingPrevious = true;
+    const prevPage = this.minLoadedPage - 1;
+
+    try {
+      const thread = await this.client.getThreadPage(this.threadId, prevPage);
+      const newReplies = thread.raw.Replies;
+      if (newReplies !== undefined && newReplies !== null) {
+        const addedPosts: Post[] = [];
+        for (let i = 0; i < newReplies.length; i++) {
+          addedPosts.push(new Post(newReplies[i]));
+        }
+        const addedCount: number = addedPosts.length;
+        this.replies = [...addedPosts, ...this.replies];
+        this.minLoadedPage = prevPage;
+        this.replyCount = this.replies.length;
+        this.visibleEndIndex = this.visibleEndIndex + addedCount;
+        console.info(`[ThreadPage] Loaded previous page ${prevPage}`);
+      }
+    } catch (error) {
+      console.error(`[ThreadPage] Failed to load previous page: ${error}`);
+    } finally {
+      this.isLoadingPrevious = false;
+    }
+  }
+
+  async loadNextPage() {
+    if (this.maxLoadedPage >= this.totalPages || this.isLoadingMore || this.thread === null) {
+      return;
+    }
+    this.isLoadingMore = true;
+    const nextPage = this.maxLoadedPage + 1;
+
+    try {
+      const thread = await this.client.getThreadPage(this.threadId, nextPage);
+      const newReplies = thread.raw.Replies;
+      if (newReplies !== undefined && newReplies !== null) {
+        for (let i = 0; i < newReplies.length; i++) {
+          this.replies.push(new Post(newReplies[i]));
+        }
+        this.maxLoadedPage = nextPage;
+        this.replyCount = this.replies.length;
+        console.info(`[ThreadPage] Loaded next page ${nextPage}`);
+      }
+    } catch (error) {
+      console.error(`[ThreadPage] Failed to load next page: ${error}`);
+    } finally {
       this.isLoadingMore = false;
     }
+  }
+
+  async onReplySuccess(replyId: string) {
+    console.info(`[ThreadPage] Reply success: ${replyId}`);
+    const wasAtLastPage: boolean = this.maxLoadedPage >= this.totalPages;
+    await this.refreshThread();
+    if (this.thread !== null) {
+      CacheManager.getInstance().setThreadCache(this.threadId, this.maxLoadedPage, this.thread);
+      console.info(
+        `[ThreadPage] Updated cache for thread ${this.threadId} page ${this.maxLoadedPage}`,
+      );
+    }
+    if (wasAtLastPage) {
+      setTimeout(() => {
+        this.scroller.scrollEdge(Edge.Bottom);
+      }, 100);
+    }
+  }
+
+  scrollToReply(replyId: number): void {
+    for (let i = 0; i < this.replies.length; i++) {
+      if (this.replies[i].id === replyId) {
+        const targetIndex = i + 1;
+        setTimeout(() => {
+          this.scroller.scrollToIndex(targetIndex, false, ScrollAlign.CENTER);
+          console.info(`[ThreadPage] Scrolled to reply ${replyId} at index ${targetIndex}`);
+        }, 100);
+        return;
+      }
+    }
+    console.info(`[ThreadPage] Reply ${replyId} not found in loaded replies`);
   }
 
   calculateTotalPages(totalReplies: number): void {
@@ -93,8 +297,12 @@ struct ThreadDetailPage {
     }
   }
 
-  hasMoreReplies(): boolean {
-    return this.currentPage < this.totalPages;
+  hasPreviousPage(): boolean {
+    return this.minLoadedPage > 1;
+  }
+
+  hasNextPage(): boolean {
+    return this.maxLoadedPage < this.totalPages;
   }
 
   @Builder
@@ -109,16 +317,10 @@ struct ThreadDetailPage {
           Text(`No.${this.thread.id}`)
             .fontSize(12)
             .fontColor($r("app.color.text_secondary"))
+            .margin({ left: 8 })
           Text(this.thread.createdAtText)
             .fontSize(12)
             .fontColor($r("app.color.text_secondary"))
-            .margin({ left: 8 })
-          Text("PO")
-            .fontSize(12)
-            .fontColor("#ff6b6b")
-            .backgroundColor("#fff0f0")
-            .padding({ left: 4, right: 4, top: 1, bottom: 1 })
-            .borderRadius(4)
             .margin({ left: 8 })
         }.width("100%")
 
@@ -149,10 +351,6 @@ struct ThreadDetailPage {
           Text(`回复: ${this.thread.totalReplyCount}`)
             .fontSize(14)
             .fontColor($r("app.color.text_secondary"))
-          Blank()
-          Text(`第 ${this.currentPage}/${this.totalPages} 页`)
-            .fontSize(14)
-            .fontColor($r("app.color.text_secondary"))
         }
         .width("100%")
         .margin({ top: 16 })
@@ -167,8 +365,7 @@ struct ThreadDetailPage {
     Column() {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.arrow_left"))
-            .fontSize(24)
+          SymbolGlyph($r("sys.symbol.arrow_left")).fontSize(24)
         }
         .backgroundColor("transparent")
         .width(48)
@@ -192,13 +389,8 @@ struct ThreadDetailPage {
         .enabled(this.thread !== null)
         .onClick(() => {
           if (this.thread) {
-            router.pushUrl({
-              url: "pages/PostPage",
-              params: {
-                resto: String(this.thread.id),
-                threadId: String(this.thread.id),
-              },
-            });
+            this.replyToId = "";
+            this.showReplySheet = true;
           }
         })
       }
@@ -233,48 +425,121 @@ struct ThreadDetailPage {
         }
         .width("100%")
         .layoutWeight(1)
-        .justifyContent(FlexAlign.Center)
+        .justifyContent(FlexAlign.Center);
       } else if (this.thread) {
-        List({ scroller: this.scroller }) {
-          ListItem() {
-            this.threadHeader()
-          }
-          ForEach(this.thread.replies, (reply: Post) => {
-            ListItem() {
-              ReplyItem({ reply: reply })
-            }
-            .margin({ top: 8, left: 12, right: 12 });
-          })
-
-          if (this.hasMoreReplies()) {
-            ListItem() {
-              Row() {
-                if (this.isLoadingMore) {
-                  LoadingProgress().width(24).height(24).color($r("app.color.primary"));
-                } else {
-                  Button("加载更多回复")
+        Refresh({ refreshing: $$this.isRefreshing }) {
+          List({ scroller: this.scroller }) {
+            if (this.isLoadingPrevious) {
+              ListItem() {
+                Row() {
+                  LoadingProgress()
+                    .width(24)
+                    .height(24)
+                    .color($r("app.color.primary"))
+                  Text("加载上一页...")
                     .fontSize(14)
-                    .fontColor($r("app.color.primary"))
-                    .backgroundColor("transparent")
-                    .onClick(() => {
-                      this.loadThread(this.threadId, this.currentPage + 1);
-                    });
+                    .fontColor($r("app.color.text_secondary"))
+                    .margin({ left: 8 })
                 }
+                .width("100%")
+                .height(60)
+                .justifyContent(FlexAlign.Center)
+              };
+            }
+            ListItem() {
+              this.threadHeader()
+            }
+            ForEach(this.replies, (reply: Post) => {
+              ListItem() {
+                ReplyItem({
+                  reply: reply,
+                  threadUserid: this.thread?.userId ?? "",
+                  onReplyClick: (replyId: string) => {
+                    this.replyToId = replyId;
+                    this.showReplySheet = true;
+                  },
+                })
               }
-              .width("100%")
-              .height(60)
-              .justifyContent(FlexAlign.Center)
-            };
+              .margin({ top: 8, left: 12, right: 12 });
+            })
+
+            if (this.isLoadingMore) {
+              ListItem() {
+                Row() {
+                  LoadingProgress()
+                    .width(24)
+                    .height(24)
+                    .color($r("app.color.primary"))
+                  Text("加载下一页...")
+                    .fontSize(14)
+                    .fontColor($r("app.color.text_secondary"))
+                    .margin({ left: 8 })
+                }
+                .width("100%")
+                .height(60)
+                .justifyContent(FlexAlign.Center)
+              };
+            }
           }
+          .width("100%")
+          .height("100%")
+          .layoutWeight(1)
+          .chainAnimation(true)
+          .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+          .backgroundColor($r("app.color.background"))
+          .padding({ bottom: 8 })
+          .onScrollIndex((start: number, end: number) => {
+            this.visibleEndIndex = end;
+            if (
+              this.hasPreviousPage() &&
+              !this.isLoadingPrevious &&
+              !this.isLoading &&
+              start <= 2
+            ) {
+              this.loadPreviousPage();
+            }
+            if (
+              this.hasNextPage() &&
+              !this.isLoadingMore &&
+              !this.isLoading &&
+              end >= this.replies.length - 2
+            ) {
+              this.loadNextPage();
+            }
+          })
         }
         .width("100%")
         .layoutWeight(1)
-        .backgroundColor($r("app.color.background"))
-        .padding({ bottom: 8 });
+        .refreshOffset(64)
+        .onRefreshing(() => {
+          this.refreshThread();
+        });
       }
     }
     .width("100%")
     .height("100%")
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .bindSheet($$this.showReplySheet, this.replySheetBuilder(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      backgroundColor: Color.Transparent,
+      onDisappear: () => {
+        this.showReplySheet = false;
+        this.replyToId = "";
+      },
+    });
+  }
+
+  @Builder
+  replySheetBuilder() {
+    ReplySheet({
+      resto: String(this.threadId),
+      threadId: String(this.threadId),
+      replyToId: this.replyToId,
+      isShow: $showReplySheet,
+      onReplySuccess: (replyId: string) => {
+        this.onReplySuccess(replyId);
+      },
+    });
   }
 }

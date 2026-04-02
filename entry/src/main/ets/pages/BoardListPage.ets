@@ -1,10 +1,10 @@
-import router from "@ohos.router";
 import { AnoBBSClient } from "../api/Client";
 import { BoardThread } from "../models/Post";
 import { Community, Timeline, Forum } from "../models/Forum";
 import { ThreadListItem } from "../components/ThreadListItem";
 import { RequiresLoginException } from "../models/Errors";
 import { CookieManager } from "../utils/CookieManager";
+import { SettingsManager } from "../utils/SettingsManager";
 
 interface BoardInfo {
   id: number;
@@ -17,6 +17,8 @@ interface BoardInfo {
 struct BoardListPage {
   @State threads: BoardThread[] = [];
   @State isLoading: boolean = false;
+  @State isLoadingMore: boolean = false;
+  @State isRefreshing: boolean = false;
   @State errorMessage: string = "";
   @State currentPage: number = 1;
   @State currentBoardId: number = -1;
@@ -26,15 +28,21 @@ struct BoardListPage {
   @State communities: Community[] = [];
   @State timelines: Timeline[] = [];
   @State boardsLoading: boolean = true;
+  @State hasMore: boolean = true;
+  @State readAnnouncementIds: number[] = [];
 
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
   private cookieManager: CookieManager = CookieManager.getInstance();
+  private settingsManager: SettingsManager = SettingsManager.getInstance();
+  private static readonly ADMIN_ANNOUNCEMENT_THREAD_ID: number = 52752005;
 
   async aboutToAppear() {
-    console.info("[BoardListPage] aboutToAppear: waiting for CookieManager init...");
+    console.info("[BoardListPage] aboutToAppear: waiting for managers init...");
     await this.cookieManager.waitForInit();
-    console.info("[BoardListPage] CookieManager init completed, loading forums...");
+    await this.settingsManager.waitForInit();
+    this.readAnnouncementIds = this.settingsManager.getReadAnnouncementIds();
+    console.info("[BoardListPage] Managers init completed, loading forums...");
     await this.loadForumsAndTimelines();
     console.info("[BoardListPage] Forums loaded, loading board threads...");
     await this.loadBoardThreads(this.currentBoardId);
@@ -59,33 +67,64 @@ struct BoardListPage {
 
   async loadBoardThreads(boardId: number, page: number = 1) {
     console.info(`[BoardListPage] loadBoardThreads: boardId=${boardId}, page=${page}`);
-    const cached = await this.client.getBoardCache(boardId, page);
-    console.info(`[BoardListPage] getBoardCache result: ${cached !== null ? "found" : "null"}`);
-    
-    if (cached !== null && cached.threads && Array.isArray(cached.threads)) {
-      console.info(`[BoardListPage] Using cached board threads`);
-      this.threads = cached.threads;
-      this.isLoading = false;
-      return;
+
+    if (page === 1) {
+      const cached = await this.client.getBoardCache(boardId, page);
+      console.info(`[BoardListPage] getBoardCache result: ${cached !== null ? "found" : "null"}`);
+
+      if (cached !== null && cached.threads && Array.isArray(cached.threads)) {
+        console.info(`[BoardListPage] Using cached board threads`);
+        this.threads = this.filterReadAnnouncements(cached.threads);
+        this.isLoading = false;
+        this.hasMore = cached.threads.length > 0;
+        this.scroller.scrollToIndex(0, true);
+        return;
+      }
     }
-    
-    this.isLoading = true;
+
+    await this.fetchBoardThreads(boardId, page);
+  }
+
+  async refreshBoardThreads() {
+    console.info(`[BoardListPage] refreshBoardThreads: boardId=${this.currentBoardId}`);
+    this.readAnnouncementIds = this.settingsManager.getReadAnnouncementIds();
+    try {
+      const threads = await this.client.getBoardPage(this.currentBoardId, 1);
+      this.threads = this.filterReadAnnouncements(threads);
+      this.currentPage = 1;
+      this.hasMore = threads.length > 0;
+      this.errorMessage = "";
+      this.scroller.scrollToIndex(0, false);
+    } catch (error) {
+      if (error instanceof RequiresLoginException) {
+        this.errorMessage = "需要饼干才能访问，请在设置中添加饼干";
+      } else {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        this.errorMessage = `加载失败: ${errorMsg}`;
+      }
+    } finally {
+      this.isRefreshing = false;
+    }
+  }
+
+  async fetchBoardThreads(boardId: number, page: number) {
+    if (page === 1) {
+      this.isLoading = true;
+    } else {
+      this.isLoadingMore = true;
+    }
+
     this.errorMessage = "";
     try {
       const threads = await this.client.getBoardPage(boardId, page);
       if (page === 1) {
-        this.threads = threads;
+        this.threads = this.filterReadAnnouncements(threads);
+        this.scroller.scrollToIndex(0, false);
       } else {
-        const newThreads: BoardThread[] = [];
-        for (let i = 0; i < this.threads.length; i++) {
-          newThreads.push(this.threads[i]);
-        }
-        for (let i = 0; i < threads.length; i++) {
-          newThreads.push(threads[i]);
-        }
-        this.threads = newThreads;
+        this.threads = [...this.threads, ...this.filterReadAnnouncements(threads)];
       }
       this.currentPage = page;
+      this.hasMore = threads.length > 0;
     } catch (error) {
       if (error instanceof RequiresLoginException) {
         this.errorMessage = "需要饼干才能访问，请在设置中添加饼干";
@@ -95,7 +134,31 @@ struct BoardListPage {
       }
     } finally {
       this.isLoading = false;
+      this.isLoadingMore = false;
     }
+  }
+
+  filterReadAnnouncements(threads: BoardThread[]): BoardThread[] {
+    return threads.filter((thread: BoardThread) => {
+      if (thread.id === BoardListPage.ADMIN_ANNOUNCEMENT_THREAD_ID) {
+        return this.readAnnouncementIds.indexOf(thread.id) === -1;
+      }
+      return true;
+    });
+  }
+
+  async onThreadClick(threadId: number) {
+    if (threadId === BoardListPage.ADMIN_ANNOUNCEMENT_THREAD_ID) {
+      await this.settingsManager.setAnnouncementRead(threadId);
+      this.readAnnouncementIds = this.settingsManager.getReadAnnouncementIds();
+      console.info(`[BoardListPage] Marked admin announcement ${threadId} as read`);
+    }
+    this.getUIContext().getRouter().pushUrl({
+      url: "pages/ThreadPage",
+      params: { threadId: threadId },
+    }).catch(() => {
+      // TODO: Implement error handling.
+    })
   }
 
   getAllBoards(): BoardInfo[] {
@@ -147,6 +210,7 @@ struct BoardListPage {
             .fontColor($r("app.color.text_primary"))
             .layoutWeight(1)
             .textAlign(TextAlign.Start)
+            .margin({ left: 8 })
           Row() {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
               SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
@@ -173,7 +237,7 @@ struct BoardListPage {
           .width("100%")
           .padding(16)
           .backgroundColor($r("app.color.card_background"))
-          .margin({ top: 8 });
+          .margin(8);
         }
 
         if (this.isLoading && this.threads.length === 0) {
@@ -191,47 +255,65 @@ struct BoardListPage {
           .layoutWeight(1)
           .justifyContent(FlexAlign.Center);
         } else {
-          List({ scroller: this.scroller }) {
-            ForEach(this.threads, (thread: BoardThread) => {
-              ListItem() {
-                ThreadListItem({
-                  thread: thread,
-                  onItemClick: (threadId: number) => {
-                    router.pushUrl({
-                      url: "pages/ThreadPage",
-                      params: { threadId: threadId },
-                    });
-                  },
-                })
-              }
-              .margin({ top: 8, left: 12, right: 12 });
-            })
-
-            if (this.threads.length > 0) {
-              ListItem() {
-                Row() {
-                  if (this.isLoading) {
-                    LoadingProgress().width(24).height(24).color($r("app.color.primary"));
-                  } else {
-                    Button("加载更多")
-                      .fontSize(14)
-                      .fontColor($r("app.color.primary"))
-                      .backgroundColor("transparent")
-                      .onClick(() => {
-                        this.loadBoardThreads(this.currentBoardId, this.currentPage + 1);
-                      });
-                  }
+          Refresh({ refreshing: $$this.isRefreshing }) {
+            List({ scroller: this.scroller }) {
+              ForEach(this.threads, (thread: BoardThread) => {
+                ListItem() {
+                  ThreadListItem({
+                    thread: thread,
+                    onItemClick: (threadId: number) => {
+                      this.onThreadClick(threadId);
+                    },
+                  })
                 }
-                .width("100%")
-                .height(60)
-                .justifyContent(FlexAlign.Center)
-              };
+                .margin({ top: 8, left: 12, right: 12 });
+              })
+
+              if (this.isLoadingMore) {
+                ListItem() {
+                  Row() {
+                    LoadingProgress()
+                      .width(24)
+                      .height(24)
+                      .color($r("app.color.primary"))
+                    Text("加载中...")
+                      .fontSize(14)
+                      .fontColor($r("app.color.text_secondary"))
+                      .margin({ left: 8 })
+                  }
+                  .width("100%")
+                  .height(60)
+                  .justifyContent(FlexAlign.Center)
+                };
+              }
             }
+            .width("100%")
+            .height("auto")
+            .layoutWeight(1)
+            .borderRadius(16)
+            .backgroundColor($r("app.color.background"))
+            .chainAnimation(true)
+            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+            .clip(true)
+            .padding({ bottom: 16 })
+            .onScrollIndex(( end: number) => {
+              if (
+                this.hasMore &&
+                !this.isLoadingMore &&
+                !this.isLoading &&
+                !this.isRefreshing &&
+                end >= this.threads.length - 3
+              ) {
+                this.loadBoardThreads(this.currentBoardId, this.currentPage + 1);
+              }
+            })
           }
+          .refreshOffset(64)
+          .onRefreshing(() => {
+            this.refreshBoardThreads();
+          })
           .width("100%")
-          .layoutWeight(1)
-          .backgroundColor($r("app.color.background"))
-          .padding({ top: 8, bottom: 8 });
+          .layoutWeight(1);
         }
       }
       .width("100%")
@@ -254,9 +336,11 @@ struct BoardListPage {
             .padding(16)
             .onClick(() => {
               this.showMoreMenu = false;
-              router.pushUrl({
+              this.getUIContext().getRouter().pushUrl({
                 url: "pages/PostPage",
-              });
+              }).catch(() => {
+                // TODO: Implement error handling.
+              })
             })
             Row() {
               SymbolGlyph($r("sys.symbol.gearshape"))
@@ -271,17 +355,22 @@ struct BoardListPage {
             .padding(16)
             .onClick(() => {
               this.showMoreMenu = false;
-              router.pushUrl({
+              this.getUIContext().getRouter().pushUrl({
                 url: "pages/SettingsPage",
-              });
+              }).catch(() => {})
             })
           }
           .width(150)
           .backgroundColor($r("app.color.card_background"))
           .borderRadius(8)
           .shadow({ radius: 8, color: "#20000000" })
+          .margin({ top: 56, right: 16 })
         }
-        .margin({ top: 56, right: 16 })
+        .width("100%")
+        .height("100%")
+        .backgroundColor(Color.Transparent)
+        .justifyContent(FlexAlign.Start)
+        .alignItems(HorizontalAlign.End)
         .onClick(() => {
           this.showMoreMenu = false;
         });
@@ -304,6 +393,7 @@ struct BoardListPage {
               }
               .width("100%")
               .padding(16)
+              .margin({ top: 44 })
 
               if (this.boardsLoading && this.communities.length === 0) {
                 Column() {
@@ -328,33 +418,34 @@ struct BoardListPage {
                         .fontWeight(FontWeight.Bold)
                         .fontColor($r("app.color.text_secondary"))
                         .width("100%")
-                        .padding({ left: 16, top: 8, bottom: 8 })
                         .backgroundColor($r("app.color.background"))
                     };
                   }
                   ForEach(this.timelines, (timeline: Timeline) => {
                     ListItem() {
-                      Text(timeline.displayName)
-                        .fontSize(16)
-                        .fontColor(
-                          this.currentBoardId === -timeline.id
-                            ? $r("app.color.primary")
-                            : $r("app.color.text_primary"),
-                        )
-                        .width("100%")
-                        .padding(16)
-                        .backgroundColor(
-                          this.currentBoardId === -timeline.id
-                            ? $r("app.color.reply_count_bg")
-                            : "transparent",
-                        )
-                        .borderRadius(8)
-                        .onClick(() => {
-                          this.currentBoardId = -timeline.id;
-                          this.currentBoardName = timeline.displayName;
-                          this.showBoardDrawer = false;
-                          this.loadBoardThreads(-timeline.id, 1);
-                        })
+                      Column() {
+                        Text(timeline.displayName)
+                          .fontSize(16)
+                          .padding(16)
+                          .fontColor(
+                            this.currentBoardId === -timeline.id
+                              ? $r("app.color.primary")
+                              : $r("app.color.text_primary"),
+                          )
+                          .width("100%")
+                          .backgroundColor(
+                            this.currentBoardId === -timeline.id
+                              ? $r("app.color.reply_count_bg")
+                              : "transparent",
+                          )
+                          .borderRadius(8)
+                          .onClick(() => {
+                            this.currentBoardId = -timeline.id;
+                            this.currentBoardName = timeline.displayName;
+                            this.showBoardDrawer = false;
+                            this.loadBoardThreads(-timeline.id, 1);
+                          })
+                      }
                     };
                   })
                   ForEach(this.communities, (community: Community) => {
@@ -365,7 +456,7 @@ struct BoardListPage {
                           .fontWeight(FontWeight.Bold)
                           .fontColor($r("app.color.text_secondary"))
                           .width("100%")
-                          .padding({ left: 16, top: 8, bottom: 8 })
+                          .padding({ left: 16 })
                           .backgroundColor($r("app.color.background"))
                         ForEach(community.forums, (forum: Forum) => {
                           if (forum.isValid()) {
@@ -397,7 +488,11 @@ struct BoardListPage {
                   })
                 }
                 .width("100%")
+                .height("100%")
                 .layoutWeight(1)
+                .padding(16)
+                .chainAnimation(true)
+                .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
                 .divider({ strokeWidth: 1, color: $r("app.color.divider") });
               }
             }
@@ -421,6 +516,6 @@ struct BoardListPage {
     }
     .width("100%")
     .height("100%")
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
   }
 }

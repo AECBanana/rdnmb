@@ -1,4 +1,3 @@
-import router from '@ohos.router';
 import { Post } from '../models/Post';
 import { image } from '@kit.ImageKit';
 import { ImageCacheManager } from '../utils/ImageCacheManager';
@@ -39,12 +38,14 @@ export struct PostImage {
   openImagePreview(): void {
     const fullUrl = this.post.attachmentUrl;
     if (fullUrl) {
-      router.pushUrl({
+      this.getUIContext().getRouter().pushUrl({
         url: 'pages/ImagePreviewPage',
         params: {
           imageUrl: fullUrl
         }
-      });
+      }).catch(() => {
+        // TODO: Implement error handling.
+      })
     }
   }
 
