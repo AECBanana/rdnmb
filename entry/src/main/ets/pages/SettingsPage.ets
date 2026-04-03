@@ -5,6 +5,7 @@ import { Cookie } from "../models/Cookie";
 import { scanBarcode, scanCore } from "@kit.ScanKit";
 import { BusinessError } from "@kit.BasicServicesKit";
 import { webview } from "@kit.ArkWeb";
+import bundleManager from "@ohos.bundle.bundleManager";
 
 @CustomDialog
 struct ManualAddCookieDialog {
@@ -127,6 +128,7 @@ struct SettingsPage {
   @State cookies: Cookie[] = [];
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
+  @State appVersion: string = "";
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
@@ -146,8 +148,26 @@ struct SettingsPage {
     }
   }
 
-  calculateCacheSize() {
-    this.cacheSize = "约 0 MB";
+  async getAppVersion() {
+    try {
+      const bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
+      const bundleInfo = await bundleManager.getBundleInfo("com.ohos.cookies", bundleFlags);
+
+      const version = bundleInfo.versionName;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  async calculateCacheSize() {
+    try {
+      const sizeBytes: number = await this.imageCacheManager.getCacheSize();
+      const formattedSize: string = this.imageCacheManager.formatSize(sizeBytes);
+      this.cacheSize = `约 ${formattedSize}`;
+    } catch (error) {
+      console.error(`[SettingsPage] Calculate cache size failed: ${error}`);
+      this.cacheSize = "约 0 MB";
+    }
   }
 
   async loadCookies() {
@@ -157,8 +177,8 @@ struct SettingsPage {
   }
 
   async clearImageCache() {
-    this.imageCacheManager.clearCache();
-    this.cacheSize = "0 MB";
+    await this.imageCacheManager.clearCache();
+    await this.calculateCacheSize();
     try {
       this.getUIContext().getPromptAction().showToast({ message: "缓存已清空..." });
     } catch (error) {
@@ -346,22 +366,34 @@ struct SettingsPage {
   }
 
   tryExtractCookieFromWeb() {
-    this.webController.runJavaScript("document.cookie", (result: string) => {
-      console.info(`[SettingsPage] Web cookies: ${result}`);
-      if (result.includes("userhash=")) {
-        const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
-        if (hashMatch && hashMatch.length > 1) {
-          const cookieHash: string = hashMatch[1];
-          console.info(`[SettingsPage] Extracted userhash: ${cookieHash}`);
-          if (cookieHash.length > 0) {
-            this.addCookie(cookieHash, "网页登录");
-            this.showWebSheet = false;
+    this.webController
+      .runJavaScript("document.cookie")
+      .then((result: string) => {
+        console.info(`[SettingsPage] Web cookies: ${result}`);
+        let cookieHash: string = "";
+        let cookieName: string = "";
+        if (result.includes("userhash=")) {
+          const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
+          if (hashMatch && hashMatch.length > 1) {
+            cookieHash = hashMatch[1].trim();
           }
         }
-      }
-    }).catch(() => {
-      // TODO: Implement error handling.
-    });
+        if (result.includes("name=")) {
+          const nameMatch: RegExpMatchArray | null = result.match(/name=([^;]+)/);
+          if (nameMatch && nameMatch.length > 1) {
+            cookieName = decodeURIComponent(nameMatch[1].trim());
+          }
+        }
+        console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, name: ${cookieName}`);
+        if (cookieHash.length > 0) {
+          const displayName: string = cookieName.length > 0 ? cookieName : "匿名";
+          this.addCookie(cookieHash, displayName);
+          this.showWebSheet = false;
+        }
+      })
+      .catch(() => {
+        // TODO: Implement error handling.
+      });
   }
 
   @Builder
@@ -500,6 +532,7 @@ struct SettingsPage {
                       this.deleteCookie(cookie.cookieHash);
                     })
                 }
+                .margin({ bottom: 16 })
                 .width("100%")
                 .backgroundColor($r("app.color.card_background"))
                 .borderRadius(16)
@@ -548,7 +581,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("1.0.0")
+              Text("1")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
