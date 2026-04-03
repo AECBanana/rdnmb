@@ -5,6 +5,7 @@ import common from "@ohos.app.ability.common";
 
 interface LinkPressEvent {
   href?: string;
+  link?: string;
   text?: string;
 }
 @Component
@@ -14,7 +15,9 @@ export struct ReplyItem {
   });
   @Prop content: string = "";
   @Prop threadUserid?: string = "";
+  @Prop isHighlighted: boolean = false;
   onReplyClick?: (replyId: string) => void;
+  onJumpToReply?: (replyId: string) => void;
   private richTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
   private tipsId: number = 9999999;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
@@ -25,8 +28,14 @@ export struct ReplyItem {
 
   processContent(rawContent: string): string {
     let content: string = rawContent.replace(/\\n/g, "").replace(/\n/g, "");
+    content = this.convertReplyLinks(content);
     content = this.convertUrlsToLinks(content);
     return content;
+  }
+
+  convertReplyLinks(content: string): string {
+    const replyPattern: RegExp = /&gt;&gt;No\.(\d+)/g;
+    return content.replace(replyPattern, '<a href="reply:$1">&gt;&gt;No.$1</a>');
   }
 
   convertUrlsToLinks(content: string): string {
@@ -44,20 +53,32 @@ export struct ReplyItem {
     };
     this.richTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
       console.info(`[ReplyItem] Link pressed: ${JSON.stringify(e)}`);
-      let url: string | undefined = undefined;
+
+      let linkValue: string | undefined = undefined;
       if (e !== null && e !== undefined) {
-        if (e.href !== undefined) {
-          url = e.href;
-        } else if (e.text !== undefined) {
-          const text: string = e.text;
-          const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
-          if (urlMatch !== null && urlMatch.length > 0) {
-            url = urlMatch[0];
-          }
+        if (e.link !== undefined) {
+          linkValue = e.link;
+        } else if (e.href !== undefined) {
+          linkValue = e.href;
         }
       }
-      if (url !== undefined) {
-        this.openLink(url);
+
+      if (linkValue !== undefined) {
+        if (linkValue.startsWith("reply:")) {
+          const replyId: string = linkValue.substring(6);
+          console.info(`[ReplyItem] Jump to reply: ${replyId}`);
+          if (this.onJumpToReply) {
+            this.onJumpToReply(replyId);
+          }
+          return e;
+        }
+        this.openLink(linkValue);
+      } else if (e !== null && e !== undefined && e.text !== undefined) {
+        const text: string = e.text;
+        const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
+        if (urlMatch !== null && urlMatch.length > 0) {
+          this.openLink(urlMatch[0]);
+        }
       }
       return e;
     };
@@ -119,6 +140,20 @@ export struct ReplyItem {
     } else {
       return `${diffYears}年前`;
     }
+  }
+
+  @Builder
+  replyMenuBuilder() {
+    Menu() {
+      MenuItem({
+        content: "回复",
+      })
+        .onClick(() => {
+          if (this.onReplyClick) {
+            this.onReplyClick(String(this.reply.id));
+          }
+        })
+    };
   }
 
   build() {
@@ -251,16 +286,13 @@ export struct ReplyItem {
             .margin({
               top: 10,
             })
-            .onClick(() => {
-              if (this.onReplyClick) {
-                this.onReplyClick(String(this.reply.id));
-              }
-            })
         }
         .width("100%")
         .height("auto")
         .padding(14)
-        .backgroundColor($r("app.color.card_background"))
+        .backgroundColor(
+          this.isHighlighted ? $r("app.color.card_light") : $r("app.color.card_background"),
+        )
         .borderRadius(12)
         .shadow({
           radius: 4,
@@ -268,11 +300,7 @@ export struct ReplyItem {
           offsetX: 0,
           offsetY: 2,
         })
-        .onClick(() => {
-          if (this.onReplyClick) {
-            this.onReplyClick(String(this.reply.id));
-          }
-        });
+        .bindContextMenu(this.replyMenuBuilder, ResponseType.LongPress | ResponseType.RightClick);
       }
     };
   }

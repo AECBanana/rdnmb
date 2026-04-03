@@ -500,13 +500,23 @@ export class AnoBBSClient {
 
       if (imageFilePath && imageFilePath.length > 0) {
         const fileName: string = imageFilePath.split("/").pop() || "image.jpg";
+        console.info(
+          `[AnoBBS] Adding image to formData: name=image, filePath=${imageFilePath}, fileName=${fileName}`,
+        );
         formDataList.push({
           name: "image",
           contentType: "image/jpeg",
           filePath: imageFilePath,
           remoteFileName: fileName,
         });
+      } else {
+        console.info(`[AnoBBS] No image to upload, imageFilePath is empty`);
       }
+
+      console.info(`[AnoBBS] FormData list count: ${formDataList.length}`);
+      formDataList.forEach((item, index) => {
+        console.info(`[AnoBBS] FormData[${index}]: name=${item.name}, type=${item.contentType}`);
+      });
 
       const headerOptions: ESObject = {
         "User-Agent": this.config.userAgent,
@@ -527,8 +537,18 @@ export class AnoBBSClient {
       console.info(`[AnoBBS] Response status: ${response.responseCode}`);
 
       const responseBody: string = response.result as string;
-      console.info(`[AnoBBS] Response body: ${responseBody.substring(0, 500)}`);
+      console.info(`[AnoBBS] Response body length: ${responseBody.length}`);
+      console.info(`[AnoBBS] Response body: ${responseBody}`);
       console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE END ==========`);
+
+      if (
+        responseBody.includes("错误") ||
+        responseBody.includes("error") ||
+        responseBody.includes("失败")
+      ) {
+        console.error(`[AnoBBS] Response contains error message`);
+        throw new ApiException(responseBody);
+      }
 
       if (response.responseCode === 200 || response.responseCode === 302) {
         const redirectLocation: string = response.header["location"] as string;

@@ -40,6 +40,7 @@ struct ThreadDetailPage {
   @State shouldScrollToReply: boolean = false;
   @State showReplySheet: boolean = false;
   @State replyToId: string = "";
+  @State highlightedReplyId: number = 0;
 
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
@@ -305,6 +306,44 @@ struct ThreadDetailPage {
     return this.maxLoadedPage < this.totalPages;
   }
 
+  jumpToReply(replyId: string): void {
+    const targetId: number = parseInt(replyId);
+    console.info(`[ThreadPage] Jump to reply: ${targetId}`);
+
+    for (let i = 0; i < this.replies.length; i++) {
+      if (this.replies[i].id === targetId) {
+        console.info(`[ThreadPage] Found reply at index: ${i}`);
+        this.scroller.scrollToIndex(i + 1, true, ScrollAlign.CENTER);
+        this.highlightedReplyId = targetId;
+
+        setTimeout(() => {
+          this.highlightedReplyId = 0;
+        }, 1500);
+        return;
+      }
+    }
+
+    console.info(`[ThreadPage] Reply ${targetId} not found in current page`);
+    this.getUIContext().showAlertDialog({
+      message: `回复 No.${targetId} 不在当前页面`,
+    });
+  }
+
+  @Builder
+  threadMenuBuilder() {
+    Menu() {
+      MenuItem({
+        content: "回复",
+      })
+        .onClick(() => {
+          if (this.thread) {
+            this.replyToId = "";
+            this.showReplySheet = true;
+          }
+        })
+    };
+  }
+
   @Builder
   threadHeader() {
     if (this.thread) {
@@ -379,20 +418,14 @@ struct ThreadDetailPage {
           .fontColor($r("app.color.text_primary"))
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Button() {
-          Text("回复")
-            .fontSize(16)
-            .padding(12)
-            .fontColor($r("app.color.text_primary"))
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
         }
-        .backgroundColor(Color.Transparent)
+        .backgroundColor("transparent")
+        .width(48)
+        .height(48)
         .enabled(this.thread !== null)
-        .onClick(() => {
-          if (this.thread) {
-            this.replyToId = "";
-            this.showReplySheet = true;
-          }
-        })
+        .bindMenu(this.threadMenuBuilder)
       }
       .width("100%")
       .padding({ left: 8, right: 16, top: 44, bottom: 12 })
@@ -454,9 +487,13 @@ struct ThreadDetailPage {
                 ReplyItem({
                   reply: reply,
                   threadUserid: this.thread?.userId ?? "",
+                  isHighlighted: this.highlightedReplyId === reply.id,
                   onReplyClick: (replyId: string) => {
                     this.replyToId = replyId;
                     this.showReplySheet = true;
+                  },
+                  onJumpToReply: (replyId: string) => {
+                    this.jumpToReply(replyId);
                   },
                 })
               }

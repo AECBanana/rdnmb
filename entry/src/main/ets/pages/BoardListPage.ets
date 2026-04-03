@@ -23,8 +23,8 @@ struct BoardListPage {
   @State currentPage: number = 1;
   @State currentBoardId: number = -1;
   @State currentBoardName: string = "时间线";
+  @State isCurrentTimeline: boolean = true;
   @State showBoardDrawer: boolean = false;
-  @State showMoreMenu: boolean = false;
   @State communities: Community[] = [];
   @State timelines: Timeline[] = [];
   @State boardsLoading: boolean = true;
@@ -153,12 +153,15 @@ struct BoardListPage {
       this.readAnnouncementIds = this.settingsManager.getReadAnnouncementIds();
       console.info(`[BoardListPage] Marked admin announcement ${threadId} as read`);
     }
-    this.getUIContext().getRouter().pushUrl({
-      url: "pages/ThreadPage",
-      params: { threadId: threadId },
-    }).catch(() => {
-      // TODO: Implement error handling.
-    })
+    this.getUIContext()
+      .getRouter()
+      .pushUrl({
+        url: "pages/ThreadPage",
+        params: { threadId: threadId },
+      })
+      .catch(() => {
+        // TODO: Implement error handling.
+      });
   }
 
   getAllBoards(): BoardInfo[] {
@@ -191,6 +194,60 @@ struct BoardListPage {
     return result;
   }
 
+  getBoardNameMap(): Map<number, string> {
+    const map: Map<number, string> = new Map();
+
+    for (let i = 0; i < this.timelines.length; i++) {
+      const t = this.timelines[i];
+      map.set(-t.id, t.displayName);
+    }
+
+    for (let i = 0; i < this.communities.length; i++) {
+      const community = this.communities[i];
+      const forums = community.forums;
+      for (let j = 0; j < forums.length; j++) {
+        const forum = forums[j];
+        if (forum.isValid()) {
+          map.set(forum.id, forum.displayName);
+        }
+      }
+    }
+
+    return map;
+  }
+
+  @Builder
+  moreMenuBuilder() {
+    Menu() {
+      MenuItem({
+        content: "发串",
+      })
+        .onClick(() => {
+          this.getUIContext()
+            .getRouter()
+            .pushUrl({
+              url: "pages/PostPage",
+            })
+            .catch(() => {
+              // TODO: Implement error handling.
+            });
+        })
+      MenuItem({
+        content: "设置",
+      })
+        .onClick(() => {
+          this.getUIContext()
+            .getRouter()
+            .pushUrl({
+              url: "pages/SettingsPage",
+            })
+            .catch(() => {
+              // TODO: Implement error handling.
+            });
+        })
+    };
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
       Column() {
@@ -218,9 +275,7 @@ struct BoardListPage {
             .width(48)
             .height(48)
             .backgroundColor("transparent")
-            .onClick(() => {
-              this.showMoreMenu = !this.showMoreMenu;
-            })
+            .bindMenu(this.moreMenuBuilder)
           }
         }
         .width("100%")
@@ -261,6 +316,8 @@ struct BoardListPage {
                 ListItem() {
                   ThreadListItem({
                     thread: thread,
+                    boardNameMap: this.getBoardNameMap(),
+                    isTimeline: this.isCurrentTimeline,
                     onItemClick: (threadId: number) => {
                       this.onThreadClick(threadId);
                     },
@@ -296,7 +353,7 @@ struct BoardListPage {
             .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
             .clip(true)
             .padding({ bottom: 16 })
-            .onScrollIndex(( end: number) => {
+            .onScrollIndex((end: number) => {
               if (
                 this.hasMore &&
                 !this.isLoadingMore &&
@@ -319,62 +376,6 @@ struct BoardListPage {
       .width("100%")
       .height("100%")
       .backgroundColor($r("app.color.background"))
-
-      if (this.showMoreMenu) {
-        Column() {
-          Column() {
-            Row() {
-              SymbolGlyph($r("sys.symbol.plus"))
-                .fontSize(20)
-                .fontColor([Color.Black])
-              Text("发串")
-                .fontSize(16)
-                .fontColor(Color.Black)
-                .margin({ left: 12 })
-            }
-            .width("100%")
-            .padding(16)
-            .onClick(() => {
-              this.showMoreMenu = false;
-              this.getUIContext().getRouter().pushUrl({
-                url: "pages/PostPage",
-              }).catch(() => {
-                // TODO: Implement error handling.
-              })
-            })
-            Row() {
-              SymbolGlyph($r("sys.symbol.gearshape"))
-                .fontSize(20)
-                .fontColor([Color.Black])
-              Text("设置")
-                .fontSize(16)
-                .fontColor(Color.Black)
-                .margin({ left: 12 })
-            }
-            .width("100%")
-            .padding(16)
-            .onClick(() => {
-              this.showMoreMenu = false;
-              this.getUIContext().getRouter().pushUrl({
-                url: "pages/SettingsPage",
-              }).catch(() => {})
-            })
-          }
-          .width(150)
-          .backgroundColor($r("app.color.card_background"))
-          .borderRadius(8)
-          .shadow({ radius: 8, color: "#20000000" })
-          .margin({ top: 56, right: 16 })
-        }
-        .width("100%")
-        .height("100%")
-        .backgroundColor(Color.Transparent)
-        .justifyContent(FlexAlign.Start)
-        .alignItems(HorizontalAlign.End)
-        .onClick(() => {
-          this.showMoreMenu = false;
-        });
-      }
 
       if (this.showBoardDrawer) {
         Column() {
@@ -442,6 +443,7 @@ struct BoardListPage {
                           .onClick(() => {
                             this.currentBoardId = -timeline.id;
                             this.currentBoardName = timeline.displayName;
+                            this.isCurrentTimeline = true;
                             this.showBoardDrawer = false;
                             this.loadBoardThreads(-timeline.id, 1);
                           })
@@ -478,6 +480,7 @@ struct BoardListPage {
                               .onClick(() => {
                                 this.currentBoardId = forum.id;
                                 this.currentBoardName = forum.displayName;
+                                this.isCurrentTimeline = false;
                                 this.showBoardDrawer = false;
                                 this.loadBoardThreads(forum.id, 1);
                               });

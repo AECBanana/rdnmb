@@ -2,14 +2,16 @@ import { common } from "@kit.AbilityKit";
 import { ImageCacheManager } from "../utils/ImageCacheManager";
 import { CookieManager } from "../utils/CookieManager";
 import { Cookie } from "../models/Cookie";
-import { promptAction } from "@kit.ArkUI";
 import { scanBarcode, scanCore } from "@kit.ScanKit";
 import { BusinessError } from "@kit.BasicServicesKit";
-
+import { webview } from "@kit.ArkWeb";
 
 @CustomDialog
 struct ManualAddCookieDialog {
-  controller: CustomDialogController = new CustomDialogController({ builder: () => {}, customStyle: true });
+  controller: CustomDialogController = new CustomDialogController({
+    builder: () => {},
+    customStyle: true,
+  });
   onConfirm?: (cookieHash: string, cookieName: string) => void;
   @State inputValue: string = "";
 
@@ -66,10 +68,10 @@ struct ManualAddCookieDialog {
               this.controller.close();
             } else {
               try {
-                this.getUIContext().getPromptAction().showToast({ message: "请输入有效的饼干信息 es:{\"cookie\":\"\",\"name\":\"\"}" })
-              }catch ( error){
-
-              }
+                this.getUIContext()
+                  .getPromptAction()
+                  .showToast({ message: '请输入有效的饼干信息 es:{"cookie":"","name":""}' });
+              } catch (error) {}
             }
           })
       }.width("100%")
@@ -124,14 +126,24 @@ struct SettingsPage {
   @State cacheSize: string = "计算中...";
   @State cookies: Cookie[] = [];
   @State selectedCookieHash: string = "";
+  @State showWebSheet: boolean = false;
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
+  private webController: webview.WebviewController = new webview.WebviewController();
   private manualAddDialogController: CustomDialogController | null = null;
 
   aboutToAppear() {
     this.calculateCacheSize();
     this.loadCookies();
+  }
+
+  aboutToDisappear(): void {
+    try {
+      this.webController.stop();
+    } catch (error) {
+      // TODO: Implement error handling.
+    }
   }
 
   calculateCacheSize() {
@@ -148,7 +160,7 @@ struct SettingsPage {
     this.imageCacheManager.clearCache();
     this.cacheSize = "0 MB";
     try {
-      this.getUIContext().getPromptAction().showToast({ message: "缓存已清空..." })
+      this.getUIContext().getPromptAction().showToast({ message: "缓存已清空..." });
     } catch (error) {
       // TODO: Implement error handling.
     }
@@ -163,7 +175,7 @@ struct SettingsPage {
     );
     this.loadCookies();
     try {
-      this.getUIContext().getPromptAction().showToast({ message: "饼干添加成功" })
+      this.getUIContext().getPromptAction().showToast({ message: "饼干添加成功" });
     } catch (error) {
       // TODO: Implement error handling.
     }
@@ -173,7 +185,7 @@ struct SettingsPage {
     await this.cookieManager.deleteCookie(cookieHash);
     this.loadCookies();
     try {
-      this.getUIContext().getPromptAction().showToast({ message: "饼干已删除" })
+      this.getUIContext().getPromptAction().showToast({ message: "饼干已删除" });
     } catch (error) {
       // TODO: Implement error handling.
     }
@@ -183,13 +195,11 @@ struct SettingsPage {
     await this.cookieManager.setSelectedCookie(cookieHash);
     this.selectedCookieHash = cookieHash;
     try {
-      this.getUIContext().getPromptAction().showToast({ message: "已切换饼干" })
+      this.getUIContext().getPromptAction().showToast({ message: "已切换饼干" });
     } catch (error) {
       // TODO: Implement error handling.
     }
   }
-
-
 
   showManualAddDialog() {
     this.manualAddDialogController = new CustomDialogController({
@@ -204,8 +214,6 @@ struct SettingsPage {
     });
     this.manualAddDialogController.open();
   }
-
-
 
   async scanQRCodeAndAdd() {
     try {
@@ -223,12 +231,12 @@ struct SettingsPage {
         })
         .catch((error: BusinessError) => {
           console.error(`Scan failed: ${error.message}`);
-          promptAction.showToast({ message: "扫码取消或失败" });
+          this.getUIContext().getPromptAction().showToast({ message: "扫码取消或失败" });
         });
     } catch (error) {
       const err: BusinessError = error as BusinessError;
       console.error(`Start scan failed: ${err.message}`);
-      promptAction.showToast({ message: "启动扫码失败" });
+      this.getUIContext().getPromptAction().showToast({ message: "扫码取消或失败" });
     }
   }
 
@@ -267,12 +275,11 @@ struct SettingsPage {
       this.addCookie(cookieHash, cookieName);
     } else {
       try {
-        this.getUIContext().getPromptAction().showToast({ message: "未识别到有效的饼干信息" })
+        this.getUIContext().getPromptAction().showToast({ message: "未识别到有效的饼干信息" });
       } catch (error) {
         // TODO: Implement error handling.
       }
     }
-
   }
 
   stringToHexBytes(str: string): string {
@@ -286,7 +293,7 @@ struct SettingsPage {
 
   @Builder
   cacheHeader() {
-    Text("缓存管理")
+    Text("缓存")
       .fontSize(14)
       .fontWeight(FontWeight.Bold)
       .fontColor($r("app.color.text_secondary"))
@@ -295,32 +302,111 @@ struct SettingsPage {
   }
 
   @Builder
-  cookieHeader() {
-    Row() {
-      Text("饼干管理")
-        .fontSize(14)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r("app.color.text_secondary"))
-      Blank()
-      Button("扫码")
-        .fontSize(12)
-        .fontColor($r("app.color.primary"))
+  webDialogContent() {
+    Column() {
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.xmark"))
+            .fontSize(20)
+            .fontColor([$r("app.color.text_primary")])
+        }
         .backgroundColor("transparent")
-        .padding({ left: 4, right: 4 })
+        .width(44)
+        .height(44)
         .onClick(() => {
-          this.scanQRCodeAndAdd();
+          this.showWebSheet = false;
         })
-      Button("手动")
-        .fontSize(12)
-        .fontColor($r("app.color.primary"))
-        .backgroundColor("transparent")
-        .padding({ left: 4, right: 4 })
-        .onClick(() => {
-          this.showManualAddDialog();
+        Text("获取饼干")
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r("app.color.text_primary"))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+        Blank().width(44)
+      }
+      .width("100%")
+      .padding({ left: 8, right: 8, top: 44, bottom: 8 })
+      .backgroundColor($r("app.color.card_background"))
+      Web({
+        src: "https://www.nmbxd1.com/Member/User/Index/login.html",
+        controller: this.webController,
+      })
+        .width("100%")
+        .layoutWeight(1)
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .cacheMode(CacheMode.Default)
+        .onPageEnd(() => {
+          this.tryExtractCookieFromWeb();
         })
     }
     .width("100%")
-    .padding({ left: 16, right: 16, top: 8, bottom: 8 });
+    .height("100%")
+    .backgroundColor($r("app.color.background"));
+  }
+
+  tryExtractCookieFromWeb() {
+    this.webController.runJavaScript("document.cookie", (result: string) => {
+      console.info(`[SettingsPage] Web cookies: ${result}`);
+      if (result.includes("userhash=")) {
+        const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
+        if (hashMatch && hashMatch.length > 1) {
+          const cookieHash: string = hashMatch[1];
+          console.info(`[SettingsPage] Extracted userhash: ${cookieHash}`);
+          if (cookieHash.length > 0) {
+            this.addCookie(cookieHash, "网页登录");
+            this.showWebSheet = false;
+          }
+        }
+      }
+    }).catch(() => {
+      // TODO: Implement error handling.
+    });
+  }
+
+  @Builder
+  cookieHeader() {
+    Column() {
+      Row() {
+        Text("饼干")
+          .fontSize(14)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r("app.color.text_secondary"))
+      }
+      .width("100%")
+      .padding({ left: 16, right: 16, top: 8, bottom: 8 })
+    };
+    Row() {
+      Button("󰗱 获取饼干")
+        .fontSize(16)
+        .fontColor($r("app.color.primary"))
+        .backgroundColor($r("app.color.card_background"))
+        .padding({ left: 16, right: 16 })
+        .onClick(() => {
+          this.showWebSheet = true;
+        })
+      Blank()
+      Button("󰁦 手动")
+        .fontSize(16)
+        .fontColor($r("app.color.primary"))
+        .backgroundColor($r("app.color.card_background"))
+        .padding({ left: 16, right: 16 })
+        .margin({ right: 8 })
+        .onClick(() => {
+          this.showManualAddDialog();
+        })
+      Button("󰄨 扫码")
+        .fontSize(16)
+        .fontColor($r("app.color.primary"))
+        .backgroundColor($r("app.color.card_background"))
+        .padding({ left: 16, right: 16 })
+        .onClick(() => {
+          this.scanQRCodeAndAdd();
+        })
+    }
+    .width("100%")
+    .margin({ bottom: 16 })
+    .justifyContent(FlexAlign.End);
   }
 
   @Builder
@@ -350,40 +436,12 @@ struct SettingsPage {
           .fontWeight(FontWeight.Bold)
           .fontColor($r("app.color.text_primary"))
           .layoutWeight(1)
-          .textAlign(TextAlign.Center)
-        Text("    ")
-          .fontSize(16)
-          .visibility(Visibility.Hidden)
+          .textAlign(TextAlign.Start)
+          .margin({ left: 8 })
       }
       .width("100%")
       .padding({ left: 8, right: 8, top: 44, bottom: 8 })
       List() {
-        ListItemGroup({ header: this.cacheHeader }) {
-          ListItem() {
-            Row() {
-              Column() {
-                Text("图片缓存")
-                  .fontSize(16)
-                  .fontColor($r("app.color.text_primary"))
-                Text(this.cacheSize)
-                  .fontSize(12)
-                  .fontColor($r("app.color.text_secondary"))
-                  .margin({ top: 4 })
-              }
-              .alignItems(HorizontalAlign.Start)
-              .layoutWeight(1)
-              Button("清除")
-                .fontSize(14)
-                .fontColor($r("app.color.primary"))
-                .backgroundColor("transparent")
-                .onClick(() => {
-                  this.clearImageCache();
-                })
-            }
-            .width("100%")
-            .padding(16)
-          }
-        }
         ListItemGroup({ header: this.cookieHeader }) {
           if (this.cookies.length === 0) {
             ListItem() {
@@ -393,7 +451,9 @@ struct SettingsPage {
                   .fontColor($r("app.color.text_secondary"))
               }
               .width("100%")
+              .backgroundColor($r("app.color.card_background"))
               .padding(16)
+              .borderRadius(16)
               .justifyContent(FlexAlign.Center)
             };
           } else {
@@ -441,9 +501,44 @@ struct SettingsPage {
                     })
                 }
                 .width("100%")
+                .backgroundColor($r("app.color.card_background"))
+                .borderRadius(16)
                 .padding(16)
               };
             });
+          }
+        }
+        ListItemGroup({ header: this.cacheHeader }) {
+          ListItem() {
+            Row() {
+              Column() {
+                Text("缓存")
+                  .fontSize(16)
+                  .fontColor($r("app.color.text_primary"))
+                Text(this.cacheSize)
+                  .fontSize(12)
+                  .fontColor($r("app.color.text_secondary"))
+                  .margin({ top: 4 })
+              }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
+              Button({ type: ButtonType.Circle }) {
+                SymbolGlyph($r("sys.symbol.eraser_line"))
+                  .fontSize(14)
+                  .fontColor([$r("app.color.primary")])
+              }
+              .backgroundColor("transparent")
+              .width(48)
+              .height(48)
+              .onClick(() => {
+                this.clearImageCache();
+              })
+            }
+            .backgroundColor($r("app.color.card_background"))
+            .borderRadius(16)
+            .shadow({ radius: 4, color: $r("app.color.card_shadow") })
+            .width("100%")
+            .padding(16)
           }
         }
         ListItemGroup({ header: this.aboutHeader }) {
@@ -476,10 +571,11 @@ struct SettingsPage {
         }
       }
       .width("100%")
+      .padding({ left: 16, right: 16 })
       .height("auto")
       .layoutWeight(1)
       .chainAnimation(true)
-      .edgeEffect(EdgeEffect.Spring,{ alwaysEnabled: true })
+      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .backgroundColor($r("app.color.background"))
       .divider({ strokeWidth: 1, color: $r("app.color.divider") })
     }
@@ -487,5 +583,11 @@ struct SettingsPage {
     .height("100%")
     .backgroundColor($r("app.color.background"))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .bindContentCover(this.showWebSheet, this.webDialogContent(), {
+      modalTransition: ModalTransition.DEFAULT,
+      onDisappear: () => {
+        this.showWebSheet = false;
+      },
+    });
   }
 }

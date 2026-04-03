@@ -7,6 +7,8 @@ export struct ThreadListItem {
     id: "0",
   });
   @Prop @Watch("updateRichText") content: string = "";
+  @Prop boardNameMap: Map<number, string> = new Map();
+  @Prop isTimeline: boolean = false;
   onItemClick?: (threadId: number) => void;
   private richTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
 
@@ -108,6 +110,13 @@ export struct ThreadListItem {
             Text(this.formatRelativeTime(this.thread.createdAtText))
               .fontSize(11)
               .fontColor($r("app.color.text_secondary"))
+              .margin({ left: 8 });
+          }
+
+          if (this.isTimeline && this.thread.boardId !== null) {
+            Text(this.boardNameMap.get(this.thread.boardId) ?? "")
+              .fontSize(11)
+              .fontColor($r("app.color.primary"))
               .margin({ left: 8 });
           }
 

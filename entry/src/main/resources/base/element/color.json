@@ -29,6 +29,10 @@
       "value": "#FFFFFF"
     },
     {
+      "name": "card_light",
+      "value": "#FFFDE5E5"
+    },
+    {
       "name": "card_shadow",
       "value": "#1A000000"
     },
@@ -103,6 +107,10 @@
     {
       "name": "nav_text_inactive",
       "value": "#9E9E9E"
+    },
+    {
+      "name": "emoji_button_background",
+      "value": "#FFF6F6F6"
     }
   ]
 }
