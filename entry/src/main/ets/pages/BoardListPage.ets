@@ -5,6 +5,7 @@ import { ThreadListItem } from "../components/ThreadListItem";
 import { RequiresLoginException } from "../models/Errors";
 import { CookieManager } from "../utils/CookieManager";
 import { SettingsManager } from "../utils/SettingsManager";
+import { PostSheet } from "../components/PostSheet";
 
 interface BoardInfo {
   id: number;
@@ -30,6 +31,7 @@ struct BoardListPage {
   @State boardsLoading: boolean = true;
   @State hasMore: boolean = true;
   @State readAnnouncementIds: number[] = [];
+  @State showPostSheet: boolean = false;
 
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
@@ -75,6 +77,7 @@ struct BoardListPage {
       if (cached !== null && cached.threads && Array.isArray(cached.threads)) {
         console.info(`[BoardListPage] Using cached board threads`);
         this.threads = this.filterReadAnnouncements(cached.threads);
+        this.currentPage = 1;
         this.isLoading = false;
         this.hasMore = cached.threads.length > 0;
         this.scroller.scrollToIndex(0, true);
@@ -220,20 +223,13 @@ struct BoardListPage {
   moreMenuBuilder() {
     Menu() {
       MenuItem({
-        content: "发串",
+        content: "󰁳 发串",
       })
         .onClick(() => {
-          this.getUIContext()
-            .getRouter()
-            .pushUrl({
-              url: "pages/PostPage",
-            })
-            .catch(() => {
-              // TODO: Implement error handling.
-            });
+          this.showPostSheet = true;
         })
       MenuItem({
-        content: "设置",
+        content: "󰀠 设置",
       })
         .onClick(() => {
           this.getUIContext()
@@ -248,12 +244,28 @@ struct BoardListPage {
     };
   }
 
+  @Builder
+  postSheetBuilder() {
+    PostSheet({
+      fid: String(this.currentBoardId),
+      boardName: this.currentBoardName,
+      isShow: $showPostSheet,
+      onPostSuccess: async (threadId: string) => {
+        console.info(`[BoardListPage] New thread posted: ${threadId}`);
+        await this.client.clearBoardCache(this.currentBoardId);
+        await this.refreshBoardThreads();
+      },
+    });
+  }
+
   build() {
     Stack({ alignContent: Alignment.TopEnd }) {
       Column() {
         Row() {
           Button({ type: ButtonType.Circle, stateEffect: true }) {
-            SymbolGlyph($r("sys.symbol.more")).fontSize(24)
+            SymbolGlyph($r("sys.symbol.more"))
+              .fontSize(24)
+              .fontColor([$r("app.color.text_primary")])
           }
           .backgroundColor("transparent")
           .width(48)
@@ -270,7 +282,9 @@ struct BoardListPage {
             .margin({ left: 8 })
           Row() {
             Button({ type: ButtonType.Circle, stateEffect: true }) {
-              SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
+              SymbolGlyph($r("sys.symbol.ellipsis_circle"))
+                .fontSize(24)
+                .fontColor([$r("app.color.text_primary")])
             }
             .width(48)
             .height(48)
@@ -387,10 +401,6 @@ struct BoardListPage {
                   .fontWeight(FontWeight.Bold)
                   .fontColor($r("app.color.text_primary"))
                   .layoutWeight(1)
-
-                if (this.boardsLoading) {
-                  LoadingProgress().width(20).height(20).color($r("app.color.primary"));
-                }
               }
               .width("100%")
               .padding(16)
@@ -417,6 +427,7 @@ struct BoardListPage {
                       Text("时间线")
                         .fontSize(14)
                         .fontWeight(FontWeight.Bold)
+                        .padding(8)
                         .fontColor($r("app.color.text_secondary"))
                         .width("100%")
                         .backgroundColor($r("app.color.background"))
@@ -427,7 +438,7 @@ struct BoardListPage {
                       Column() {
                         Text(timeline.displayName)
                           .fontSize(16)
-                          .padding(16)
+                          .padding(8)
                           .fontColor(
                             this.currentBoardId === -timeline.id
                               ? $r("app.color.primary")
@@ -439,7 +450,7 @@ struct BoardListPage {
                               ? $r("app.color.reply_count_bg")
                               : "transparent",
                           )
-                          .borderRadius(8)
+                          .borderRadius(16)
                           .onClick(() => {
                             this.currentBoardId = -timeline.id;
                             this.currentBoardName = timeline.displayName;
@@ -458,7 +469,7 @@ struct BoardListPage {
                           .fontWeight(FontWeight.Bold)
                           .fontColor($r("app.color.text_secondary"))
                           .width("100%")
-                          .padding({ left: 16 })
+                          .padding(8)
                           .backgroundColor($r("app.color.background"))
                         ForEach(community.forums, (forum: Forum) => {
                           if (forum.isValid()) {
@@ -470,13 +481,13 @@ struct BoardListPage {
                                   : $r("app.color.text_primary"),
                               )
                               .width("100%")
-                              .padding(16)
+                              .padding(8)
                               .backgroundColor(
                                 this.currentBoardId === forum.id
                                   ? $r("app.color.reply_count_bg")
                                   : "transparent",
                               )
-                              .borderRadius(8)
+                              .borderRadius(16)
                               .onClick(() => {
                                 this.currentBoardId = forum.id;
                                 this.currentBoardName = forum.displayName;
@@ -493,7 +504,6 @@ struct BoardListPage {
                 .width("100%")
                 .height("100%")
                 .layoutWeight(1)
-                .padding(16)
                 .chainAnimation(true)
                 .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
                 .divider({ strokeWidth: 1, color: $r("app.color.divider") });
@@ -519,6 +529,14 @@ struct BoardListPage {
     }
     .width("100%")
     .height("100%")
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .bindSheet($$this.showPostSheet, this.postSheetBuilder(), {
+      height: SheetSize.FIT_CONTENT,
+      dragBar: true,
+      backgroundColor: Color.Transparent,
+      onDisappear: () => {
+        this.showPostSheet = false;
+      },
+    });
   }
 }

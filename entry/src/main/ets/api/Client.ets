@@ -306,6 +306,7 @@ export class AnoBBSClient {
     email?: string,
     title?: string,
     water?: string,
+    imageFilePath?: string,
   ): Promise<string> {
     if (!(await this.hasCookie())) {
       throw new RequiresLoginException();
@@ -316,6 +317,20 @@ export class AnoBBSClient {
     const url = `${this.baseUrl}Home/Forum/doPostThread.html`;
 
     console.info(`[AnoBBS] Posting new thread to fid=${fid}`);
+
+    if (imageFilePath && imageFilePath.length > 0) {
+      return await this.postMultipartWithImageForNewThread(
+        url,
+        fid,
+        content,
+        name,
+        email,
+        title,
+        water,
+        imageFilePath,
+        cookieHeader,
+      );
+    }
 
     const boundary: string = `----WebKitFormBoundary${Date.now().toString(16)}`;
     let body: string = "";
@@ -492,6 +507,16 @@ export class AnoBBSClient {
 
       console.info(`[AnoBBS] Form fields count: ${Object.keys(formDataObj).length}`);
       console.info(`[AnoBBS] Form fields: ${Object.keys(formDataObj).join(", ")}`);
+      for (const key of Object.keys(formDataObj)) {
+        const value = formDataObj[key];
+        if (typeof value === "string") {
+          console.info(`[AnoBBS]   ${key}: "${value}"`);
+        } else {
+          console.info(
+            `[AnoBBS]   ${key}: [FILE] ${(value as rcp.FormFieldFileValue).contentOrPath}`,
+          );
+        }
+      }
 
       const formData = new rcp.MultipartForm(formDataObj);
 
@@ -641,6 +666,165 @@ export class AnoBBSClient {
       throw new NetworkException(`发串失败: ${errMsg}`);
     } finally {
       httpRequest.destroy();
+    }
+  }
+
+  private async postMultipartWithImageForNewThread(
+    url: string,
+    fid: string,
+    content: string,
+    name?: string,
+    email?: string,
+    title?: string,
+    water?: string,
+    imageFilePath?: string,
+    cookieHeader?: string,
+  ): Promise<string> {
+    console.info(`[AnoBBS] ========== POST NEW THREAD WITH IMAGE START (RCP) ==========`);
+    console.info(`[AnoBBS] Request URL: ${url}`);
+    console.info(`[AnoBBS] Image path: ${imageFilePath}`);
+    console.info(`[AnoBBS] fid value: "${fid}", length: ${fid.length}`);
+
+    const session = rcp.createSession();
+    try {
+      const formDataObj: Record<string, string | rcp.FormFieldFileValue> = {};
+
+      formDataObj["fid"] = fid;
+
+      if (name && name.length > 0) {
+        formDataObj["name"] = name;
+      }
+
+      if (email && email.length > 0) {
+        formDataObj["email"] = email;
+      }
+
+      if (title && title.length > 0) {
+        formDataObj["title"] = title;
+      }
+
+      if (content && content.length > 0) {
+        formDataObj["content"] = content;
+      }
+
+      if (water && water.length > 0) {
+        formDataObj["water"] = water;
+      }
+
+      if (imageFilePath && imageFilePath.length > 0) {
+        const fileName: string = imageFilePath.split("/").pop() || "image.jpg";
+        console.info(
+          `[AnoBBS] Adding image to form: name=image, filePath=${imageFilePath}, fileName=${fileName}`,
+        );
+
+        const fileValue: rcp.FormFieldFileValue = {
+          contentType: "image/jpeg",
+          remoteFileName: fileName,
+          contentOrPath: imageFilePath,
+        };
+        formDataObj["image"] = fileValue;
+      }
+
+      console.info(`[AnoBBS] Form fields count: ${Object.keys(formDataObj).length}`);
+      console.info(`[AnoBBS] Form fields: ${Object.keys(formDataObj).join(", ")}`);
+      for (const key of Object.keys(formDataObj)) {
+        const value = formDataObj[key];
+        if (typeof value === "string") {
+          console.info(`[AnoBBS]   ${key}: "${value}"`);
+        } else {
+          console.info(
+            `[AnoBBS]   ${key}: [FILE] ${(value as rcp.FormFieldFileValue).contentOrPath}`,
+          );
+        }
+      }
+
+      const formData = new rcp.MultipartForm(formDataObj);
+
+      const requestHeaders: rcp.RequestHeaders = {
+        "User-Agent": this.config.userAgent,
+        Accept: "*/*",
+        "Accept-Language": "zh-cn",
+        Connection: "keep-alive",
+        Cookie: cookieHeader,
+      };
+
+      const request = new rcp.Request(url, "POST", requestHeaders, formData);
+
+      const response = await session.fetch(request);
+
+      console.info(`[AnoBBS] Response status: ${response.statusCode}`);
+
+      const responseBody: string = response.body ? String(response.body) : "";
+      console.info(`[AnoBBS] Response body length: ${responseBody.length}`);
+      console.info(`[AnoBBS] Response body: ${responseBody}`);
+      console.info(`[AnoBBS] ========== POST NEW THREAD WITH IMAGE END ==========`);
+
+      if (response.statusCode === 200 || response.statusCode === 302) {
+        const redirectLocation = response.headers["location"];
+        if (redirectLocation && redirectLocation.length > 0) {
+          const match: RegExpMatchArray | null = redirectLocation.match(/\/t\/(\d+)/);
+          if (match && match.length > 1) {
+            return match[1];
+          }
+        }
+
+        const successMatch: RegExpMatchArray | null = responseBody.match(
+          /<p class="success"[^>]*>([^<]+)<\/p>/,
+        );
+        if (successMatch !== null && successMatch.length > 1) {
+          const successMsg: string = successMatch[1];
+          console.info(`[AnoBBS] Post new thread success: ${successMsg}`);
+          const idMatch: RegExpMatchArray | null = responseBody.match(/t\/(\d+)/);
+          if (idMatch !== null && idMatch.length > 1) {
+            return idMatch[1];
+          }
+          return "";
+        }
+
+        const errorMatch: RegExpMatchArray | null = responseBody.match(
+          /<p class="error"[^>]*>([^<]+)<\/p>/,
+        );
+        if (errorMatch !== null && errorMatch.length > 1) {
+          const errorMsg: string = errorMatch[1];
+          console.error(`[AnoBBS] Post new thread failed: ${errorMsg}`);
+          throw new ApiException(errorMsg);
+        }
+
+        if (responseBody.indexOf("成功") !== -1) {
+          console.info(`[AnoBBS] Post new thread appears successful`);
+          const idMatch: RegExpMatchArray | null = responseBody.match(/t\/(\d+)/);
+          if (idMatch !== null && idMatch.length > 1) {
+            return idMatch[1];
+          }
+          return "";
+        }
+
+        if (
+          responseBody.includes("错误") ||
+          responseBody.includes("error") ||
+          responseBody.includes("失败")
+        ) {
+          console.error(`[AnoBBS] Response contains error message`);
+          throw new ApiException(responseBody);
+        }
+
+        return "success";
+      } else if (response.statusCode === 403) {
+        throw new RequiresLoginException();
+      } else {
+        throw new ApiException(`HTTP error: ${response.statusCode}`);
+      }
+    } catch (error) {
+      console.error(`[AnoBBS] POST new thread with image error: ${error}`);
+      if (error instanceof RequiresLoginException) {
+        throw new RequiresLoginException();
+      }
+      if (error instanceof ApiException) {
+        throw new ApiException(error.rawText);
+      }
+      throw new NetworkException(`Network error: ${JSON.stringify(error)}`);
+    } finally {
+      session.close();
     }
   }
 

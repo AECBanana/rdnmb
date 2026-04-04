@@ -25,7 +25,7 @@ export struct ThreadListItem {
     this.richTextModel.richTextOption = {
       content: displayContent,
       baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: "#333333",
+      baseFontColor: $r("app.color.text_primary"),
     };
   }
 

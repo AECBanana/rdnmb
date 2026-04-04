@@ -38,11 +38,11 @@
     },
     {
       "name": "text_secondary",
-      "value": "#B0B0B0"
+      "value": "#FFE9E9E9"
     },
     {
       "name": "text_hint",
-      "value": "#666666"
+      "value": "#FFA28D8D"
     },
     {
       "name": "divider",
@@ -95,6 +95,10 @@
     {
       "name": "nav_text_inactive",
       "value": "#666666"
+    },
+    {
+      "name": "emoji_button_background",
+      "value": "#1E1E1E"
     }
   ]
 }

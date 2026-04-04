@@ -603,6 +603,18 @@ struct SettingsPage {
     .width("100%")
     .margin({ bottom: 16 })
     .justifyContent(FlexAlign.End);
+    Row() {
+      Text(
+        '󰛗 获取饼干会打开x岛用户后台，请登录后点击菜单切换到选择"󰁩 饼干列表" 页面 > 选择所需要的饼干，点击"󰁳 应用"即可自动解析并添加饼干。你也可以手动输入二维码内容或者直接扫码添加饼干。',
+      )
+        .fontSize(12)
+        .fontColor($r("app.color.text_secondary"))
+        .width("100%")
+        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
+        .borderRadius(16)
+        .margin({ bottom: 16 })
+        .backgroundColor($r("app.color.card_background"))
+    };
   }
 
   @Builder
@@ -620,6 +632,7 @@ struct SettingsPage {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r("sys.symbol.arrow_left"))
+            .fontColor([$r("app.color.text_secondary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -693,7 +706,21 @@ struct SettingsPage {
                     .fontColor("#ff6b6b")
                     .backgroundColor("transparent")
                     .onClick(() => {
-                      this.deleteCookie(cookie.cookieHash);
+                      AlertDialog.show({
+                        title: "确认删除",
+                        message: `确定要删除饼干 "${cookie.cookieName}" 吗？\n (σﾟдﾟ)σ`,
+                        primaryButton: {
+                          value: "确认删除",
+                          fontColor: "#ff6b6b",
+                          action: () => {
+                            this.deleteCookie(cookie.cookieHash);
+                          },
+                        },
+                        secondaryButton: {
+                          value: "不要删除哇",
+                          action: () => {},
+                        },
+                      });
                     })
                 }
                 .margin({ bottom: 16 })
@@ -745,7 +772,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("1")
+              Text("1.0.0")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
@@ -761,6 +788,16 @@ struct SettingsPage {
               Text("AeCw")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
+            }
+            .width("100%")
+            .padding(16)
+          }
+          ListItem() {
+            Row() {
+              Text("“人，是会思考的芦苇。”——帕斯卡，《思想录》")
+                .fontSize(12)
+                .fontColor($r("app.color.text_primary"))
+                .layoutWeight(1)
             }
             .width("100%")
             .padding(16)

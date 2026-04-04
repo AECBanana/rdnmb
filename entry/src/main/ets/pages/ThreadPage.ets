@@ -57,7 +57,7 @@ struct ThreadDetailPage {
     this.threadRichTextModel.richTextOption = {
       content: "",
       baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: "#333333",
+      baseFontColor: $r("app.color.text_secondary"),
     };
     this.threadRichTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
       console.info(`[ThreadPage] Link pressed: ${JSON.stringify(e)}`);
@@ -142,7 +142,7 @@ struct ThreadDetailPage {
       this.threadRichTextModel.richTextOption = {
         content: displayContent,
         baseFontSize: $r("app.float.content_text_font"),
-        baseFontColor: "#333333",
+        baseFontColor: $r("app.color.text_primary"),
       };
     }
   }
@@ -333,7 +333,7 @@ struct ThreadDetailPage {
   threadMenuBuilder() {
     Menu() {
       MenuItem({
-        content: "回复",
+        content: "󰁬 回复",
       })
         .onClick(() => {
           if (this.thread) {
@@ -404,7 +404,7 @@ struct ThreadDetailPage {
     Column() {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.arrow_left")).fontSize(24)
+          SymbolGlyph($r("sys.symbol.arrow_left")).fontSize(24).fontColor([$r("app.color.text_secondary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -419,7 +419,7 @@ struct ThreadDetailPage {
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
+          SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24).fontColor([$r("app.color.text_secondary")])
         }
         .backgroundColor("transparent")
         .width(48)

@@ -3,7 +3,6 @@
     "pages/BoardListPage",
     "pages/ThreadPage",
     "pages/SettingsPage",
-    "pages/ImagePreviewPage",
-    "pages/PostPage"
+    "pages/ImagePreviewPage"
   ]
 }

@@ -49,7 +49,7 @@ export struct ReplyItem {
     this.richTextModel.richTextOption = {
       content: displayContent,
       baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: "#333333",
+      baseFontColor: $r("app.color.text_primary"),
     };
     this.richTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
       console.info(`[ReplyItem] Link pressed: ${JSON.stringify(e)}`);
@@ -146,7 +146,7 @@ export struct ReplyItem {
   replyMenuBuilder() {
     Menu() {
       MenuItem({
-        content: "回复",
+        content: "󰁬 回复",
       })
         .onClick(() => {
           if (this.onReplyClick) {
