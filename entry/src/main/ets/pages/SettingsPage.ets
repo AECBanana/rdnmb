@@ -135,6 +135,7 @@ struct SettingsPage {
   private cookieManager: CookieManager = CookieManager.getInstance();
   private webController: webview.WebviewController = new webview.WebviewController();
   private manualAddDialogController: CustomDialogController | null = null;
+  private webCookieCache: Map<string, string> = new Map<string, string>();
 
   aboutToAppear() {
     this.calculateCacheSize();
@@ -188,6 +189,9 @@ struct SettingsPage {
   }
 
   async addCookie(hash: string, cookieName: string) {
+    console.info(`[SettingsPage] addCookie called, hash length: ${hash.length}`);
+    console.info(`[SettingsPage] hash bytes: ${this.stringToHexBytes(hash)}`);
+    console.info(`[SettingsPage] hash contains null: ${hash.indexOf("\x00") !== -1}`);
     const finalDisplayName: string = cookieName.length > 0 ? cookieName : "匿名";
     await this.cookieManager.addCookie(
       hash,
@@ -357,8 +361,10 @@ struct SettingsPage {
         .javaScriptAccess(true)
         .domStorageAccess(true)
         .cacheMode(CacheMode.Default)
-        .onPageEnd(() => {
-          this.tryExtractCookieFromWeb();
+        .onPageEnd((event) => {
+          const url: string = event?.url ?? "";
+          console.info(`[SettingsPage] Page end URL: ${url}`);
+          this.tryExtractCookieFromWeb(url);
         })
     }
     .width("100%")
@@ -366,7 +372,53 @@ struct SettingsPage {
     .backgroundColor($r("app.color.background"));
   }
 
-  tryExtractCookieFromWeb() {
+  tryExtractCookieFromWeb(currentUrl: string) {
+    const isCookieListPage: boolean = currentUrl.includes("Cookie/index.html");
+    const isSwitchPage: boolean = currentUrl.includes("Cookie/switchTo/id/");
+
+    if (isCookieListPage) {
+      this.cacheAllCookiesFromPage();
+    }
+
+    if (isSwitchPage) {
+      const idMatch: RegExpMatchArray | null = currentUrl.match(/switchTo\/id\/(\d+)\.html/);
+      if (idMatch && idMatch.length > 1) {
+        const cookieId: string = idMatch[1];
+        console.info(`[SettingsPage] Switching to cookie ID: ${cookieId}`);
+        this.webController
+          .runJavaScript("document.cookie")
+          .then((result: string) => {
+            console.info(`[SettingsPage] Web cookies: ${result}`);
+            let cookieHash: string = "";
+            if (result.includes("userhash=")) {
+              const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
+              if (hashMatch && hashMatch.length > 1) {
+                let rawHash: string = hashMatch[1];
+                console.info(
+                  `[SettingsPage] Raw hash from regex: "${rawHash}", length: ${rawHash.length}`,
+                );
+                console.info(`[SettingsPage] Raw hash bytes: ${this.stringToHexBytes(rawHash)}`);
+                try {
+                  cookieHash = decodeURIComponent(rawHash);
+                } catch (e) {
+                  cookieHash = rawHash;
+                }
+                cookieHash = cookieHash.replace(/["'\x00]/g, "").trim();
+              }
+            }
+            console.info(`[SettingsPage] Decoded cookieHash length: ${cookieHash.length}`);
+            console.info(
+              `[SettingsPage] Decoded cookieHash bytes: ${this.stringToHexBytes(cookieHash)}`,
+            );
+            if (cookieHash.length > 0) {
+              this.extractCookieNameById(cookieHash, cookieId);
+            }
+          })
+          .catch(() => {});
+      }
+      return;
+    }
+
     this.webController
       .runJavaScript("document.cookie")
       .then((result: string) => {
@@ -375,7 +427,11 @@ struct SettingsPage {
         if (result.includes("userhash=")) {
           const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
           if (hashMatch && hashMatch.length > 1) {
-            cookieHash = hashMatch[1].trim();
+            try {
+              cookieHash = decodeURIComponent(hashMatch[1].trim());
+            } catch (e) {
+              cookieHash = hashMatch[1].trim();
+            }
           }
         }
 
@@ -386,35 +442,120 @@ struct SettingsPage {
           console.info(
             `[SettingsPage] Cookie changed from "${this.initialCookieHash}" to "${cookieHash}"`,
           );
-          this.webController
-            .runJavaScript("document.body.innerText")
-            .then((bodyText: string) => {
-              console.info(`[SettingsPage] Body text: ${bodyText}`);
-              let cookieName: string = "匿名";
-              const jsonMatch: RegExpMatchArray | null = bodyText.match(
-                /\{"cookie"[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}/,
-              );
-              if (jsonMatch && jsonMatch.length > 1) {
-                cookieName = jsonMatch[1];
-              } else {
-                const nameMatch: RegExpMatchArray | null = bodyText.match(/"name"\s*:\s*"([^"]+)"/);
-                if (nameMatch && nameMatch.length > 1) {
-                  cookieName = nameMatch[1];
-                }
-              }
-              console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, name: ${cookieName}`);
-              this.addCookie(cookieHash, cookieName);
-              this.showWebSheet = false;
-            })
-            .catch(() => {
-              console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, using default name`);
-              this.addCookie(cookieHash, "匿名");
-              this.showWebSheet = false;
-            });
+          this.extractCookieName(cookieHash, isCookieListPage);
         }
       })
       .catch(() => {
         // TODO: Implement error handling.
+      });
+  }
+
+  extractCookieNameById(cookieHash: string, cookieId: string) {
+    console.info(
+      `[SettingsPage] Looking for ID ${cookieId} in cache (size: ${this.webCookieCache.size})`,
+    );
+    const cachedName: string | undefined = this.webCookieCache.get(cookieId);
+    if (cachedName !== undefined) {
+      console.info(`[SettingsPage] Found cached name for ID ${cookieId}: ${cachedName}`);
+      this.addCookie(cookieHash, cachedName);
+      this.showWebSheet = false;
+      return;
+    }
+    console.info(`[SettingsPage] No cached name for ID ${cookieId}, using default`);
+    this.addCookie(cookieHash, "匿名");
+    this.showWebSheet = false;
+  }
+
+  cacheAllCookiesFromPage() {
+    const jsCode: string = `
+      (function() {
+        var result = [];
+        var tables = document.querySelectorAll('table');
+        for (var t = 0; t < tables.length; t++) {
+          var tbody = tables[t].querySelector('tbody');
+          var rows = tbody ? tbody.querySelectorAll('tr') : tables[t].querySelectorAll('tr');
+          for (var r = 0; r < rows.length; r++) {
+            var cells = rows[r].querySelectorAll('td');
+            if (cells.length >= 3) {
+              var idCell = cells[1].innerText.trim();
+              var nameLink = cells[2].querySelector('a');
+              var nameCell = nameLink ? nameLink.innerText.trim() : cells[2].innerText.trim();
+              if (idCell && nameCell) {
+                result.push(idCell + ':::' + nameCell);
+              }
+            }
+          }
+        }
+        return result.join('|||');
+      })()
+    `;
+    this.webController
+      .runJavaScript(jsCode)
+      .then((result: string) => {
+        console.info(`[SettingsPage] Cache result: ${result}`);
+        if (result && result.length > 0) {
+          const items: string[] = result.split("|||");
+          for (const item of items) {
+            const parts: string[] = item.split(":::");
+            if (parts.length === 2) {
+              const id: string = parts[0].replace(/["']/g, "").trim();
+              const name: string = parts[1].replace(/["']/g, "").trim();
+              this.webCookieCache.set(id, name);
+              console.info(`[SettingsPage] Cached cookie: ${id} -> ${name}`);
+            }
+          }
+          console.info(`[SettingsPage] Total cached cookies: ${this.webCookieCache.size}`);
+        }
+      })
+      .catch(() => {});
+  }
+
+  extractCookieName(cookieHash: string, isCookiePage: boolean) {
+    const cachedName: string | undefined = this.webCookieCache.get(cookieHash);
+    if (cachedName !== undefined) {
+      console.info(`[SettingsPage] Found cached name for ${cookieHash}: ${cachedName}`);
+      this.addCookie(cookieHash, cachedName);
+      this.showWebSheet = false;
+      return;
+    }
+
+    if (!isCookiePage) {
+      console.info(`[SettingsPage] Not on cookie page and no cache, using default name`);
+      this.addCookie(cookieHash, "匿名");
+      this.showWebSheet = false;
+      return;
+    }
+
+    const jsCode: string = `
+      (function() {
+        var tables = document.querySelectorAll('table');
+        for (var t = 0; t < tables.length; t++) {
+          var rows = tables[t].querySelectorAll('tr');
+          for (var r = 0; r < rows.length; r++) {
+            var cells = rows[r].querySelectorAll('td');
+            if (cells.length >= 2) {
+              var idCell = cells[0].innerText.trim();
+              var nameCell = cells[1].innerText.trim();
+              if (idCell === '${cookieHash}' || idCell.indexOf('${cookieHash}') === 0) {
+                return nameCell || '匿名';
+              }
+            }
+          }
+        }
+        return '匿名';
+      })()
+    `;
+    this.webController
+      .runJavaScript(jsCode)
+      .then((cookieName: string) => {
+        console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, name: ${cookieName}`);
+        this.addCookie(cookieHash, cookieName);
+        this.showWebSheet = false;
+      })
+      .catch(() => {
+        console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, using default name`);
+        this.addCookie(cookieHash, "匿名");
+        this.showWebSheet = false;
       });
   }
 
