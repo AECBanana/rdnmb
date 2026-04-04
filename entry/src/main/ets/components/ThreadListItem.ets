@@ -206,12 +206,12 @@ export struct ThreadListItem {
     .height("auto")
     .padding(14)
     .backgroundColor($r("app.color.card_background"))
-    .borderRadius(12)
+    .borderRadius(16)
     .shadow({
       radius: 4,
       color: $r("app.color.card_shadow"),
       offsetX: 0,
-      offsetY: 2,
+      offsetY: 4,
     })
     .onClick(() => {
       this.onItemClick?.(this.thread.id);

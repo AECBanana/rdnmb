@@ -6,6 +6,7 @@ import { RequiresLoginException } from "../models/Errors";
 import { CookieManager } from "../utils/CookieManager";
 import { SettingsManager } from "../utils/SettingsManager";
 import { PostSheet } from "../components/PostSheet";
+import { BoardDrawer } from "../components/BoardDrawer";
 
 interface BoardInfo {
   id: number;
@@ -325,59 +326,75 @@ struct BoardListPage {
           .justifyContent(FlexAlign.Center);
         } else {
           Refresh({ refreshing: $$this.isRefreshing }) {
-            List({ scroller: this.scroller }) {
-              ForEach(this.threads, (thread: BoardThread) => {
-                ListItem() {
-                  ThreadListItem({
-                    thread: thread,
-                    boardNameMap: this.getBoardNameMap(),
-                    isTimeline: this.isCurrentTimeline,
-                    onItemClick: (threadId: number) => {
-                      this.onThreadClick(threadId);
-                    },
-                  })
-                }
-                .margin({ top: 8, left: 12, right: 12 });
-              })
-
-              if (this.isLoadingMore) {
-                ListItem() {
-                  Row() {
-                    LoadingProgress()
-                      .width(24)
-                      .height(24)
-                      .color($r("app.color.primary"))
-                    Text("加载中...")
-                      .fontSize(14)
-                      .fontColor($r("app.color.text_secondary"))
-                      .margin({ left: 8 })
+            Row() {
+              List({ scroller: this.scroller }) {
+                ForEach(this.threads, (thread: BoardThread) => {
+                  ListItem() {
+                    ThreadListItem({
+                      thread: thread,
+                      boardNameMap: this.getBoardNameMap(),
+                      isTimeline: this.isCurrentTimeline,
+                      onItemClick: (threadId: number) => {
+                        this.onThreadClick(threadId);
+                      },
+                    })
                   }
                   .width("100%")
-                  .height(60)
-                  .justifyContent(FlexAlign.Center)
-                };
+                  .margin({ bottom: 16 });
+                })
+
+                if (this.isLoadingMore) {
+                  ListItem() {
+                    Row() {
+                      LoadingProgress()
+                        .width(24)
+                        .height(24)
+                        .color($r("app.color.primary"))
+                      Text("加载中...")
+                        .fontSize(14)
+                        .fontColor($r("app.color.text_secondary"))
+                        .margin({ left: 8 })
+                    }
+                    .width("100%")
+                    .height(60)
+                    .justifyContent(FlexAlign.Center)
+                  };
+                }
               }
+              .width("100%")
+              .height("auto")
+              .layoutWeight(1)
+              .borderRadius(16)
+              .backgroundColor($r("app.color.background"))
+              .chainAnimation(true)
+              .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+              .scrollBar(BarState.Off)
+              .clip(true)
+              .margin({ left: 12, bottom: 12 })
+              .onScrollIndex((end: number) => {
+                if (
+                  this.hasMore &&
+                  !this.isLoadingMore &&
+                  !this.isLoading &&
+                  !this.isRefreshing &&
+                  end >= this.threads.length - 3
+                ) {
+                  this.loadBoardThreads(this.currentBoardId, this.currentPage + 1);
+                }
+              })
+              ScrollBar({ scroller: this.scroller,direction: ScrollBarDirection.Vertical, state: BarState.Auto }) {
+                Text("  ")
+                  .backgroundColor($r("app.color.primary"))
+                  .borderRadius(2)
+              }
+              .width(4)
+              .height("100%")
+              .margin({ left: 2 })
+              .backgroundColor(Color.Transparent)
+              .borderRadius(2)
             }
             .width("100%")
-            .height("auto")
             .layoutWeight(1)
-            .borderRadius(16)
-            .backgroundColor($r("app.color.background"))
-            .chainAnimation(true)
-            .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-            .clip(true)
-            .padding({ bottom: 16 })
-            .onScrollIndex((end: number) => {
-              if (
-                this.hasMore &&
-                !this.isLoadingMore &&
-                !this.isLoading &&
-                !this.isRefreshing &&
-                end >= this.threads.length - 3
-              ) {
-                this.loadBoardThreads(this.currentBoardId, this.currentPage + 1);
-              }
-            })
           }
           .refreshOffset(64)
           .onRefreshing(() => {
@@ -392,139 +409,19 @@ struct BoardListPage {
       .backgroundColor($r("app.color.background"))
 
       if (this.showBoardDrawer) {
-        Column() {
-          Row() {
-            Column() {
-              Row() {
-                Text("版块列表")
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Bold)
-                  .fontColor($r("app.color.text_primary"))
-                  .layoutWeight(1)
-              }
-              .width("100%")
-              .padding(16)
-              .margin({ top: 44 })
-
-              if (this.boardsLoading && this.communities.length === 0) {
-                Column() {
-                  LoadingProgress()
-                    .width(32)
-                    .height(32)
-                    .color($r("app.color.primary"))
-                  Text("加载版块列表...")
-                    .fontSize(12)
-                    .fontColor($r("app.color.text_secondary"))
-                    .margin({ top: 8 })
-                }
-                .width("100%")
-                .height(200)
-                .justifyContent(FlexAlign.Center);
-              } else {
-                List() {
-                  if (this.timelines.length > 0) {
-                    ListItem() {
-                      Text("时间线")
-                        .fontSize(14)
-                        .fontWeight(FontWeight.Bold)
-                        .padding(8)
-                        .fontColor($r("app.color.text_secondary"))
-                        .width("100%")
-                        .backgroundColor($r("app.color.background"))
-                    };
-                  }
-                  ForEach(this.timelines, (timeline: Timeline) => {
-                    ListItem() {
-                      Column() {
-                        Text(timeline.displayName)
-                          .fontSize(16)
-                          .padding(8)
-                          .fontColor(
-                            this.currentBoardId === -timeline.id
-                              ? $r("app.color.primary")
-                              : $r("app.color.text_primary"),
-                          )
-                          .width("100%")
-                          .backgroundColor(
-                            this.currentBoardId === -timeline.id
-                              ? $r("app.color.reply_count_bg")
-                              : "transparent",
-                          )
-                          .borderRadius(16)
-                          .onClick(() => {
-                            this.currentBoardId = -timeline.id;
-                            this.currentBoardName = timeline.displayName;
-                            this.isCurrentTimeline = true;
-                            this.showBoardDrawer = false;
-                            this.loadBoardThreads(-timeline.id, 1);
-                          })
-                      }
-                    };
-                  })
-                  ForEach(this.communities, (community: Community) => {
-                    ListItem() {
-                      Column() {
-                        Text(community.name)
-                          .fontSize(14)
-                          .fontWeight(FontWeight.Bold)
-                          .fontColor($r("app.color.text_secondary"))
-                          .width("100%")
-                          .padding(8)
-                          .backgroundColor($r("app.color.background"))
-                        ForEach(community.forums, (forum: Forum) => {
-                          if (forum.isValid()) {
-                            Text(forum.displayName)
-                              .fontSize(16)
-                              .fontColor(
-                                this.currentBoardId === forum.id
-                                  ? $r("app.color.primary")
-                                  : $r("app.color.text_primary"),
-                              )
-                              .width("100%")
-                              .padding(8)
-                              .backgroundColor(
-                                this.currentBoardId === forum.id
-                                  ? $r("app.color.reply_count_bg")
-                                  : "transparent",
-                              )
-                              .borderRadius(16)
-                              .onClick(() => {
-                                this.currentBoardId = forum.id;
-                                this.currentBoardName = forum.displayName;
-                                this.isCurrentTimeline = false;
-                                this.showBoardDrawer = false;
-                                this.loadBoardThreads(forum.id, 1);
-                              });
-                          }
-                        })
-                      }.width("100%")
-                    };
-                  })
-                }
-                .width("100%")
-                .height("100%")
-                .layoutWeight(1)
-                .chainAnimation(true)
-                .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-                .divider({ strokeWidth: 1, color: $r("app.color.divider") });
-              }
-            }
-            .width(280)
-            .height("100%")
-            .backgroundColor($r("app.color.card_background"))
-            Column()
-              .layoutWeight(1)
-              .height("100%")
-              .backgroundColor("#80000000")
-              .onClick(() => {
-                this.showBoardDrawer = false;
-              })
-          }
-          .width("100%")
-          .height("100%")
-        }
-        .width("100%")
-        .height("100%");
+        BoardDrawer({
+          currentBoardId: this.currentBoardId,
+          communities: this.communities,
+          timelines: this.timelines,
+          boardsLoading: this.boardsLoading,
+          isShow: $showBoardDrawer,
+          onBoardSelect: (boardId: number, boardName: string, isTimeline: boolean) => {
+            this.currentBoardId = boardId;
+            this.currentBoardName = boardName;
+            this.isCurrentTimeline = isTimeline;
+            this.loadBoardThreads(boardId, 1);
+          },
+        });
       }
     }
     .width("100%")
@@ -538,5 +435,133 @@ struct BoardListPage {
         this.showPostSheet = false;
       },
     });
+  }
+}
+
+@Preview
+@Component
+struct BoardListPagePreview {
+  @State threads: BoardThread[] = [
+    new BoardThread({
+      id: "12345678",
+      now: "2024-01-01 12:00:00",
+      content: "这是一个预览帖子内容，用于展示列表项的样式。",
+      userid: "preview_user",
+      user_hash: "abc123",
+      name: "预览用户",
+      title: "预览标题",
+      ReplyCount: "10",
+      fid: "1",
+    }),
+    new BoardThread({
+      id: "87654321",
+      now: "2024-01-01 11:00:00",
+      content: "这是另一个预览帖子内容，用于展示列表项的样式。",
+      img: "preview_image",
+      ext: ".jpg",
+      userid: "preview_user2",
+      user_hash: "def456",
+      name: "预览用户2",
+      ReplyCount: "5",
+      fid: "2",
+    }),
+  ];
+  @State currentBoardName: string = "时间线";
+  @State showBoardDrawer: boolean = false;
+  @State showPostSheet: boolean = false;
+  private scroller: Scroller = new Scroller();
+
+  build() {
+    Stack({ alignContent: Alignment.TopEnd }) {
+      Column() {
+        Row() {
+          Button({ type: ButtonType.Circle, stateEffect: true }) {
+            SymbolGlyph($r("sys.symbol.more"))
+              .fontSize(24)
+              .fontColor([$r("app.color.text_primary")])
+          }
+          .backgroundColor("transparent")
+          .width(48)
+          .height(48)
+          .onClick(() => {
+            this.showBoardDrawer = true;
+          })
+          Text(this.currentBoardName)
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r("app.color.text_primary"))
+            .layoutWeight(1)
+            .textAlign(TextAlign.Start)
+            .margin({ left: 8 })
+          Row() {
+            Button({ type: ButtonType.Circle, stateEffect: true }) {
+              SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24)
+            }
+            .width(48)
+            .height(48)
+            .backgroundColor("transparent")
+            .bindMenu(this.moreMenuBuilder)
+          }
+        }
+        .width("100%")
+        .padding({ left: 8, right: 8, top: 44, bottom: 8 })
+        List({ scroller: this.scroller }) {
+          ForEach(this.threads, (thread: BoardThread) => {
+            ListItem() {
+              ThreadListItem({
+                thread: thread,
+                boardNameMap: new Map<number, string>([
+                  [1, "技术"],
+                  [2, "生活"],
+                ]),
+                isTimeline: true,
+                onItemClick: (threadId: number) => {
+                  console.info(`Preview: clicked thread ${threadId}`);
+                },
+              })
+            }
+            .margin({ top: 8, left: 12, right: 12 });
+          })
+        }
+        .width("100%")
+        .layoutWeight(1)
+        .borderRadius(16)
+        .backgroundColor($r("app.color.background"))
+        .chainAnimation(true)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .clip(true)
+        .padding({ bottom: 16 })
+      }
+      .width("100%")
+      .height("100%")
+      .backgroundColor($r("app.color.background"))
+
+      if (this.showBoardDrawer) {
+        BoardDrawer({
+          currentBoardId: -1,
+          communities: [],
+          timelines: [],
+          boardsLoading: false,
+          isShow: $showBoardDrawer,
+          onBoardSelect: (boardId: number, boardName: string, isTimeline: boolean) => {
+            console.info(`Preview: selected board ${boardId} - ${boardName}`);
+          },
+        });
+      }
+    }
+    .width("100%")
+    .height("100%")
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM]);
+  }
+
+  @Builder
+  moreMenuBuilder() {
+    Menu() {
+      MenuItem({ content: "发串" })
+        .onClick(() => {
+          this.showPostSheet = true;
+        })
+      MenuItem({ content: "设置" })
+    };
   }
 }
