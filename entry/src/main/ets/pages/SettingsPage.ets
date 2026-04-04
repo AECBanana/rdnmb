@@ -129,6 +129,7 @@ struct SettingsPage {
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
   @State appVersion: string = "";
+  @State lastCookieHash: string = "";
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
@@ -371,24 +372,40 @@ struct SettingsPage {
       .then((result: string) => {
         console.info(`[SettingsPage] Web cookies: ${result}`);
         let cookieHash: string = "";
-        let cookieName: string = "";
         if (result.includes("userhash=")) {
           const hashMatch: RegExpMatchArray | null = result.match(/userhash=([^;]+)/);
           if (hashMatch && hashMatch.length > 1) {
             cookieHash = hashMatch[1].trim();
           }
         }
-        if (result.includes("name=")) {
-          const nameMatch: RegExpMatchArray | null = result.match(/name=([^;]+)/);
-          if (nameMatch && nameMatch.length > 1) {
-            cookieName = decodeURIComponent(nameMatch[1].trim());
-          }
-        }
-        console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, name: ${cookieName}`);
-        if (cookieHash.length > 0) {
-          const displayName: string = cookieName.length > 0 ? cookieName : "匿名";
-          this.addCookie(cookieHash, displayName);
-          this.showWebSheet = false;
+
+        if (cookieHash.length > 0 && cookieHash !== this.lastCookieHash) {
+          this.lastCookieHash = cookieHash;
+          this.webController
+            .runJavaScript("document.body.innerText")
+            .then((bodyText: string) => {
+              console.info(`[SettingsPage] Body text: ${bodyText}`);
+              let cookieName: string = "匿名";
+              const jsonMatch: RegExpMatchArray | null = bodyText.match(
+                /\{"cookie"[^}]*"name"\s*:\s*"([^"]+)"[^}]*\}/,
+              );
+              if (jsonMatch && jsonMatch.length > 1) {
+                cookieName = jsonMatch[1];
+              } else {
+                const nameMatch: RegExpMatchArray | null = bodyText.match(/"name"\s*:\s*"([^"]+)"/);
+                if (nameMatch && nameMatch.length > 1) {
+                  cookieName = nameMatch[1];
+                }
+              }
+              console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, name: ${cookieName}`);
+              this.addCookie(cookieHash, cookieName);
+              this.showWebSheet = false;
+            })
+            .catch(() => {
+              console.info(`[SettingsPage] Extracted userhash: ${cookieHash}, using default name`);
+              this.addCookie(cookieHash, "匿名");
+              this.showWebSheet = false;
+            });
         }
       })
       .catch(() => {
@@ -415,6 +432,7 @@ struct SettingsPage {
         .backgroundColor($r("app.color.card_background"))
         .padding({ left: 16, right: 16 })
         .onClick(() => {
+          this.lastCookieHash = "";
           this.showWebSheet = true;
         })
       Blank()
