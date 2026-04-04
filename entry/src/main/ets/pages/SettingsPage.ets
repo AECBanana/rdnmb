@@ -129,7 +129,7 @@ struct SettingsPage {
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
   @State appVersion: string = "";
-  @State lastCookieHash: string = "";
+  @State initialCookieHash: string = "";
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
@@ -379,8 +379,13 @@ struct SettingsPage {
           }
         }
 
-        if (cookieHash.length > 0 && cookieHash !== this.lastCookieHash) {
-          this.lastCookieHash = cookieHash;
+        if (this.initialCookieHash === "") {
+          this.initialCookieHash = cookieHash;
+          console.info(`[SettingsPage] Initial cookie recorded: ${this.initialCookieHash}`);
+        } else if (cookieHash !== this.initialCookieHash && cookieHash.length > 0) {
+          console.info(
+            `[SettingsPage] Cookie changed from "${this.initialCookieHash}" to "${cookieHash}"`,
+          );
           this.webController
             .runJavaScript("document.body.innerText")
             .then((bodyText: string) => {
@@ -432,7 +437,7 @@ struct SettingsPage {
         .backgroundColor($r("app.color.card_background"))
         .padding({ left: 16, right: 16 })
         .onClick(() => {
-          this.lastCookieHash = "";
+          this.initialCookieHash = "";
           this.showWebSheet = true;
         })
       Blank()
