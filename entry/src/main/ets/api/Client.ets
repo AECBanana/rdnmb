@@ -1,4 +1,5 @@
 import { http } from "@kit.NetworkKit";
+import { rcp } from "@kit.RemoteCommunicationKit";
 import { BoardThread, BoardThreadRaw, ThreadPage, ThreadPageRaw } from "../models/Post";
 import { Community, CommunityRaw, Timeline, TimelineRaw } from "../models/Forum";
 import {
@@ -444,81 +445,57 @@ export class AnoBBSClient {
     imageFilePath?: string,
     cookieHeader?: string,
   ): Promise<string> {
-    const httpRequest = http.createHttp();
+    console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE START (RCP) ==========`);
+    console.info(`[AnoBBS] Request URL: ${url}`);
+    console.info(`[AnoBBS] Image path: ${imageFilePath}`);
+    console.info(`[AnoBBS] resto value: "${resto}", length: ${resto.length}`);
+
+    const session = rcp.createSession();
     try {
-      console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE START ==========`);
-      console.info(`[AnoBBS] Request URL: ${url}`);
-      console.info(`[AnoBBS] Image path: ${imageFilePath}`);
+      const formDataObj: Record<string, string | rcp.FormFieldFileValue> = {};
 
-      const formDataList: http.MultiFormData[] = [];
-
-      formDataList.push({
-        name: "resto",
-        contentType: "text/plain",
-        data: resto,
-      });
+      formDataObj["resto"] = resto;
 
       if (name && name.length > 0) {
-        formDataList.push({
-          name: "name",
-          contentType: "text/plain",
-          data: name,
-        });
+        formDataObj["name"] = name;
       }
 
       if (email && email.length > 0) {
-        formDataList.push({
-          name: "email",
-          contentType: "text/plain",
-          data: email,
-        });
+        formDataObj["email"] = email;
       }
 
       if (title && title.length > 0) {
-        formDataList.push({
-          name: "title",
-          contentType: "text/plain",
-          data: title,
-        });
+        formDataObj["title"] = title;
       }
 
       if (content && content.length > 0) {
-        formDataList.push({
-          name: "content",
-          contentType: "text/plain",
-          data: content,
-        });
+        formDataObj["content"] = content;
       }
 
       if (water && water.length > 0) {
-        formDataList.push({
-          name: "water",
-          contentType: "text/plain",
-          data: water,
-        });
+        formDataObj["water"] = water;
       }
 
       if (imageFilePath && imageFilePath.length > 0) {
         const fileName: string = imageFilePath.split("/").pop() || "image.jpg";
         console.info(
-          `[AnoBBS] Adding image to formData: name=image, filePath=${imageFilePath}, fileName=${fileName}`,
+          `[AnoBBS] Adding image to form: name=image, filePath=${imageFilePath}, fileName=${fileName}`,
         );
-        formDataList.push({
-          name: "image",
+
+        const fileValue: rcp.FormFieldFileValue = {
           contentType: "image/jpeg",
-          filePath: imageFilePath,
           remoteFileName: fileName,
-        });
-      } else {
-        console.info(`[AnoBBS] No image to upload, imageFilePath is empty`);
+          contentOrPath: imageFilePath,
+        };
+        formDataObj["image"] = fileValue;
       }
 
-      console.info(`[AnoBBS] FormData list count: ${formDataList.length}`);
-      formDataList.forEach((item, index) => {
-        console.info(`[AnoBBS] FormData[${index}]: name=${item.name}, type=${item.contentType}`);
-      });
+      console.info(`[AnoBBS] Form fields count: ${Object.keys(formDataObj).length}`);
+      console.info(`[AnoBBS] Form fields: ${Object.keys(formDataObj).join(", ")}`);
 
-      const headerOptions: ESObject = {
+      const formData = new rcp.MultipartForm(formDataObj);
+
+      const requestHeaders: rcp.RequestHeaders = {
         "User-Agent": this.config.userAgent,
         Accept: "*/*",
         "Accept-Language": "zh-cn",
@@ -526,17 +503,13 @@ export class AnoBBSClient {
         Cookie: cookieHeader,
       };
 
-      const response: http.HttpResponse = await httpRequest.request(url, {
-        method: http.RequestMethod.POST,
-        header: headerOptions,
-        multiFormDataList: formDataList,
-        connectTimeout: 60000,
-        readTimeout: 60000,
-      });
+      const request = new rcp.Request(url, "POST", requestHeaders, formData);
 
-      console.info(`[AnoBBS] Response status: ${response.responseCode}`);
+      const response = await session.fetch(request);
 
-      const responseBody: string = response.result as string;
+      console.info(`[AnoBBS] Response status: ${response.statusCode}`);
+
+      const responseBody: string = response.body ? String(response.body) : "";
       console.info(`[AnoBBS] Response body length: ${responseBody.length}`);
       console.info(`[AnoBBS] Response body: ${responseBody}`);
       console.info(`[AnoBBS] ========== POST REQUEST WITH IMAGE END ==========`);
@@ -550,8 +523,8 @@ export class AnoBBSClient {
         throw new ApiException(responseBody);
       }
 
-      if (response.responseCode === 200 || response.responseCode === 302) {
-        const redirectLocation: string = response.header["location"] as string;
+      if (response.statusCode === 200 || response.statusCode === 302) {
+        const redirectLocation = response.headers["location"];
         if (redirectLocation && redirectLocation.length > 0) {
           const match: RegExpMatchArray | null = redirectLocation.match(/\/t\/(\d+)/);
           if (match && match.length > 1) {
@@ -565,10 +538,10 @@ export class AnoBBSClient {
         }
 
         return "success";
-      } else if (response.responseCode === 403) {
+      } else if (response.statusCode === 403) {
         throw new RequiresLoginException();
       } else {
-        throw new ApiException(`HTTP error: ${response.responseCode}`);
+        throw new ApiException(`HTTP error: ${response.statusCode}`);
       }
     } catch (error) {
       console.error(`[AnoBBS] POST request with image error: ${error}`);
@@ -580,7 +553,7 @@ export class AnoBBSClient {
       }
       throw new NetworkException(`Network error: ${JSON.stringify(error)}`);
     } finally {
-      httpRequest.destroy();
+      session.close();
     }
   }
 

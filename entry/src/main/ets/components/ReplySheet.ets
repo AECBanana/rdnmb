@@ -128,19 +128,30 @@ export struct ReplySheet {
         const context = getContext(this);
         const cachePath = context.cacheDir + "/" + this.selectedImageName;
         console.info(`[ReplySheet] Copying image from ${this.selectedImageUri} to ${cachePath}`);
+
         const srcFile = fileIo.openSync(this.selectedImageUri, fileIo.OpenMode.READ_ONLY);
+        const stat = fileIo.statSync(srcFile.fd);
+        const fileSize = stat.size;
+        console.info(`[ReplySheet] Image file size: ${fileSize}`);
+
+        const buffer = new ArrayBuffer(fileSize);
+        fileIo.readSync(srcFile.fd, buffer);
+        fileIo.closeSync(srcFile);
+
         const destFile = fileIo.openSync(
           cachePath,
           fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE,
         );
-        fileIo.copyFileSync(srcFile.fd, destFile.fd);
-        fileIo.closeSync(srcFile);
+        fileIo.writeSync(destFile.fd, buffer);
         fileIo.closeSync(destFile);
-        imageFilePath = destFile.path;
-        console.info(`[ReplySheet] Image copied to: ${destFile.path}`);
-        console.info(`[ReplySheet] imageFilePath: ${imageFilePath}`);
+
+        imageFilePath = cachePath;
+        console.info(`[ReplySheet] Image copied to: ${imageFilePath}`);
       }
 
+      console.info(
+        `[ReplySheet] Posting reply, resto: "${this.resto}", content length: ${this.content.length}, imageFilePath: ${imageFilePath}`,
+      );
       const result: string = await this.client.postReply(
         this.resto,
         this.content,

@@ -57,7 +57,7 @@
       },
       {
         "name": "ohos.permission.STORE_PERSISTENT_DATA"
-      },
+      }
     ]
   }
 }
