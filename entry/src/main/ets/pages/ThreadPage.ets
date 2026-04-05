@@ -151,7 +151,7 @@ struct ThreadDetailPage {
     this.threadRichTextModel.richTextOption = {
       content: "",
       baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: $r("app.color.text_secondary"),
+      baseFontColor: $r("app.color.text_primary"),
     };
     this.threadRichTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
       console.info(`[ThreadPage] Link pressed: ${JSON.stringify(e)}`);

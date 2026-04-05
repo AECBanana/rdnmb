@@ -128,16 +128,15 @@ struct SettingsPage {
   @State cookies: Cookie[] = [];
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
+  @State showPrivatePage: boolean = false;
+  @State appVersion: string = "";
   @State initialCookieHash: string = "";
-  @State showPrivacySheet: boolean = false;
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
   private webController: webview.WebviewController = new webview.WebviewController();
-  private privacyWebController: webview.WebviewController = new webview.WebviewController();
   private manualAddDialogController: CustomDialogController | null = null;
   private webCookieCache: Map<string, string> = new Map<string, string>();
-  private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear() {
     this.calculateCacheSize();
@@ -149,6 +148,17 @@ struct SettingsPage {
       this.webController.stop();
     } catch (error) {
       // TODO: Implement error handling.
+    }
+  }
+
+  async getAppVersion() {
+    try {
+      const bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
+      const bundleInfo = await bundleManager.getBundleInfo("com.ohos.cookies", bundleFlags);
+
+      const version = bundleInfo.versionName;
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -215,12 +225,6 @@ struct SettingsPage {
     } catch (error) {
       // TODO: Implement error handling.
     }
-  }
-
-  async openLink(url: string) {
-    try {
-      await this.context.openLink(url);
-    } catch (error) {}
   }
 
   showManualAddDialog() {
@@ -321,6 +325,47 @@ struct SettingsPage {
       .fontColor($r("app.color.text_secondary"))
       .width("100%")
       .padding({ left: 16, top: 8, bottom: 8 });
+  }
+
+  @Builder
+  privateContent() {
+    Column() {
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.xmark"))
+            .fontSize(20)
+            .fontColor([$r("app.color.text_primary")])
+        }
+        .backgroundColor("transparent")
+        .width(44)
+        .height(44)
+        .onClick(() => {
+          this.showPrivatePage = false;
+        })
+        Text("隐私政策")
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r("app.color.text_primary"))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+        Blank().width(44)
+      }
+      .width("100%")
+      .padding({ left: 8, right: 8, top: 44, bottom: 8 })
+      .backgroundColor($r("app.color.card_background"))
+      Web({
+        src: "https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1921757233209701504",
+        controller: this.webController,
+      })
+        .width("100%")
+        .layoutWeight(1)
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .cacheMode(CacheMode.Default)
+    }
+    .width("100%")
+    .height("100%")
+    .backgroundColor($r("app.color.background"));
   }
 
   @Builder
@@ -600,18 +645,6 @@ struct SettingsPage {
     .width("100%")
     .margin({ bottom: 16 })
     .justifyContent(FlexAlign.End);
-    Row() {
-      Text(
-        '󰛗 获取饼干会打开x岛用户后台，请登录后点击菜单切换到选择"󰁩 饼干列表" 页面 > 选择所需要的饼干，点击"󰁳 应用"即可自动解析并添加饼干。你也可以手动输入二维码内容或者直接扫码添加饼干。',
-      )
-        .fontSize(12)
-        .fontColor($r("app.color.text_secondary"))
-        .width("100%")
-        .padding({ left: 16, right: 16, top: 16, bottom: 16 })
-        .borderRadius(16)
-        .margin({ bottom: 16 })
-        .backgroundColor($r("app.color.card_background"))
-    };
   }
 
   @Builder
@@ -629,7 +662,6 @@ struct SettingsPage {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r("sys.symbol.arrow_left"))
-            .fontColor([$r("app.color.text_primary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -688,37 +720,23 @@ struct SettingsPage {
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
-                  Button("删除")
-                    .fontSize(12)
-                    .fontColor("#ff6b6b")
-                    .backgroundColor("transparent")
-                    .onClick(() => {
-                      AlertDialog.show({
-                        title: "确认删除",
-                        message: `确定要删除饼干 "${cookie.cookieName}" 吗？\n (σﾟдﾟ)σ`,
-                        primaryButton: {
-                          value: "确认删除",
-                          fontColor: "#ff6b6b",
-                          action: () => {
-                            this.deleteCookie(cookie.cookieHash);
-                          },
-                        },
-                        secondaryButton: {
-                          value: "不要删除哇",
-                          action: () => {},
-                        },
-                      });
-                    })
-
                   if (this.selectedCookieHash !== cookie.cookieHash) {
                     Button("使用")
                       .fontSize(12)
                       .fontColor($r("app.color.primary"))
                       .backgroundColor("transparent")
+                      .margin({ right: 8 })
                       .onClick(() => {
                         this.selectCookie(cookie.cookieHash);
                       });
                   }
+                  Button("删除")
+                    .fontSize(12)
+                    .fontColor("#ff6b6b")
+                    .backgroundColor("transparent")
+                    .onClick(() => {
+                      this.deleteCookie(cookie.cookieHash);
+                    })
                 }
                 .margin({ bottom: 16 })
                 .width("100%")
@@ -769,7 +787,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text($r("app.string.appVersion"))
+              Text("1")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
@@ -791,45 +809,19 @@ struct SettingsPage {
           }
           ListItem() {
             Row() {
-              Text("问题反馈")
+              Text("隐私政策")
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("Github 󰃙")
+              Text("󰃙")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
-                .onClick(() => {
-                  this.openLink("https://github.com/AeCw/Bilibili-Evolved-V2");
-                })
-            }
-            .width("100%")
-            .padding(16)
-          }
-          ListItem() {
-            Row() {
-              Text("用户隐私声明")
-                .fontSize(16)
-                .fontColor($r("app.color.text_primary"))
-                .layoutWeight(1)
-              SymbolGlyph($r("sys.symbol.chevron_right"))
-                .fontSize(16)
-                .fontColor([$r("app.color.text_secondary")])
             }
             .width("100%")
             .padding(16)
             .onClick(() => {
-              this.showPrivacySheet = true;
+              this.showPrivatePage = true;
             })
-          }
-          ListItem() {
-            Row() {
-              Text("“人，是会思考的芦苇。”——帕斯卡，《思想录》")
-                .fontSize(12)
-                .fontColor($r("app.color.text_primary"))
-                .layoutWeight(1)
-            }
-            .width("100%")
-            .padding(16)
           }
         }
       }
@@ -841,6 +833,13 @@ struct SettingsPage {
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .backgroundColor($r("app.color.background"))
       .divider({ strokeWidth: 1, color: $r("app.color.divider") })
+      // 2个bindContent放一起第一个会出bug,只能分开，傻逼吧
+      .bindContentCover(this.showPrivatePage, this.privateContent(), {
+        modalTransition: ModalTransition.DEFAULT,
+        onDisappear: () => {
+          this.showWebSheet = false;
+        },
+      })
     }
     .width("100%")
     .height("100%")
@@ -851,52 +850,6 @@ struct SettingsPage {
       onDisappear: () => {
         this.showWebSheet = false;
       },
-    })
-    .bindContentCover(this.showPrivacySheet, this.privacyDialogContent(), {
-      modalTransition: ModalTransition.DEFAULT,
-      onDisappear: () => {
-        this.showPrivacySheet = false;
-      },
     });
-  }
-
-  @Builder
-  privacyDialogContent() {
-    Column() {
-      Row() {
-        Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.xmark"))
-            .fontColor([$r("app.color.text_primary")])
-        }
-        .backgroundColor("transparent")
-        .width(48)
-        .height(48)
-        .onClick(() => {
-          this.showPrivacySheet = false;
-        })
-        Text("用户隐私声明")
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r("app.color.text_primary"))
-          .layoutWeight(1)
-      }
-      .width("100%")
-      .margin({bottom: 16})
-      .padding({ left: 8, top: 8 })
-      Web({
-        src: "https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1921757233209701504",
-        controller: this.privacyWebController,
-      })
-        .width("100%")
-        .height("100%")
-        .layoutWeight(1)
-        .javaScriptAccess(true)
-        .domStorageAccess(true)
-    }
-    .width("100%")
-    .margin({top:48})
-    .height("100%")
-    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-    .backgroundColor($r("app.color.background"));
   }
 }
