@@ -30,17 +30,23 @@ interface ContentSegment {
 @Component
 struct SpoilerText {
   @Prop text: string = "";
-  @State isRevealed: boolean = false;
 
   build() {
     Text(this.text)
       .fontSize($r("app.float.content_text_font"))
-      .fontColor(this.isRevealed ? $r("app.color.text_primary") : $r("app.color.spoiler_bg"))
-      .backgroundColor(this.isRevealed ? Color.Transparent : $r("app.color.spoiler_bg"))
-      .borderRadius(4)
-      .padding({ left: 4, right: 4 })
+      .fontColor($r("app.color.spoiler_bg"))
+      .backgroundColor($r("app.color.spoiler_bg"))
+      .borderRadius(2)
+      .padding({ left: 2, right: 2 })
       .onClick(() => {
-        this.isRevealed = true;
+        AlertDialog.show({
+          message: this.text,
+          alignment: DialogAlignment.Center,
+          primaryButton: {
+            value: "关闭",
+            action: () => {},
+          },
+        });
       });
   }
 }
@@ -218,34 +224,13 @@ struct ThreadDetailPage {
     return false;
   }
 
-  @Builder
-  threadContentBuilder() {
-    if (this.hasSpoiler()) {
-      Column() {
-        ForEach(this.threadContentSegments, (segment: ContentSegment, index: number) => {
-          if (segment.type === "text") {
-            HPRichTextV2({
-              richTextModel: this.getTextRichTextModel(segment.content),
-            });
-          } else {
-            SpoilerText({ text: segment.content });
-          }
-        })
-      }.width("100%");
-    } else {
-      HPRichTextV2({
-        richTextModel: this.threadRichTextModel,
-      });
-    }
-  }
-
-  getTextRichTextModel(text: string): RichTextOptionModelV2 {
+  getRichTextModelForText(text: string): RichTextOptionModelV2 {
     const model: RichTextOptionModelV2 = new RichTextOptionModelV2();
     let displayContent: string = this.processContent(text);
     model.richTextOption = {
       content: displayContent,
       baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: $r("app.color.text_secondary"),
+      baseFontColor: $r("app.color.text_primary"),
     };
     model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
       let url: string | undefined = undefined;
@@ -638,7 +623,23 @@ struct ThreadDetailPage {
         }
         Stack({ alignContent: Alignment.TopStart }) {
           Column() {
-            this.threadContentBuilder()
+            if (this.hasSpoiler()) {
+              Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Start }) {
+                ForEach(this.threadContentSegments, (segment: ContentSegment, index: number) => {
+                  if (segment.type === "text") {
+                    HPRichTextV2({
+                      richTextModel: this.getRichTextModelForText(segment.content),
+                    });
+                  } else {
+                    SpoilerText({ text: segment.content });
+                  }
+                })
+              }.width("100%");
+            } else {
+              HPRichTextV2({
+                richTextModel: this.threadRichTextModel,
+              });
+            }
           }
           .width("100%")
           .padding({ left: this.thread.thumbnailUrl ? 132 : 0 })

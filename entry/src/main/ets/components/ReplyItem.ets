@@ -18,17 +18,23 @@ interface ContentSegment {
 @Component
 struct SpoilerText {
   @Prop text: string = "";
-  @State isRevealed: boolean = false;
 
   build() {
     Text(this.text)
       .fontSize($r("app.float.content_text_font"))
-      .fontColor(this.isRevealed ? $r("app.color.text_primary") : $r("app.color.spoiler_bg"))
-      .backgroundColor(this.isRevealed ? Color.Transparent : $r("app.color.spoiler_bg"))
-      .borderRadius(4)
-      .padding({ left: 4, right: 4 })
+      .fontColor($r("app.color.spoiler_bg"))
+      .backgroundColor($r("app.color.spoiler_bg"))
+      .borderRadius(2)
+      .padding({ left: 2, right: 2 })
       .onClick(() => {
-        this.isRevealed = true;
+        AlertDialog.show({
+          message: this.text,
+          alignment: DialogAlignment.Center,
+          primaryButton: {
+            value: "关闭",
+            action: () => {},
+          },
+        });
       });
   }
 }
@@ -105,6 +111,57 @@ export struct ReplyItem {
     return content.replace(urlPattern, '<a href="$1">$1</a>');
   }
 
+  hasSpoiler(): boolean {
+    for (const segment of this.contentSegments) {
+      if (segment.type === "spoiler") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  getRichTextModelForText(text: string): RichTextOptionModelV2 {
+    const model: RichTextOptionModelV2 = new RichTextOptionModelV2();
+    let displayContent: string = this.processContent(text);
+    model.richTextOption = {
+      content: displayContent,
+      baseFontSize: $r("app.float.content_text_font"),
+      baseFontColor: $r("app.color.text_primary"),
+    };
+    model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
+      console.info(`[ReplyItem] Link pressed: ${JSON.stringify(e)}`);
+
+      let linkValue: string | undefined = undefined;
+      if (e !== null && e !== undefined) {
+        if (e.link !== undefined) {
+          linkValue = e.link;
+        } else if (e.href !== undefined) {
+          linkValue = e.href;
+        }
+      }
+
+      if (linkValue !== undefined) {
+        if (linkValue.startsWith("reply:")) {
+          const replyId: string = linkValue.substring(6);
+          console.info(`[ReplyItem] Jump to reply: ${replyId}`);
+          if (this.onJumpToReply) {
+            this.onJumpToReply(replyId);
+          }
+          return e;
+        }
+        this.openLink(linkValue);
+      } else if (e !== null && e !== undefined && e.text !== undefined) {
+        const text: string = e.text;
+        const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
+        if (urlMatch !== null && urlMatch.length > 0) {
+          this.openLink(urlMatch[0]);
+        }
+      }
+      return e;
+    };
+    return model;
+  }
+
   updateRichText(): void {
     let textContent: string = "";
     for (const segment of this.contentSegments) {
@@ -149,74 +206,6 @@ export struct ReplyItem {
       }
       return e;
     };
-  }
-
-  hasSpoiler(): boolean {
-    for (const segment of this.contentSegments) {
-      if (segment.type === "spoiler") {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  @Builder
-  contentBuilder() {
-    if (this.hasSpoiler()) {
-      Column() {
-        ForEach(this.contentSegments, (segment: ContentSegment, index: number) => {
-          if (segment.type === "text") {
-            HPRichTextV2({
-              richTextModel: this.getTextRichTextModel(segment.content),
-            });
-          } else {
-            SpoilerText({ text: segment.content });
-          }
-        })
-      }.width("100%");
-    } else {
-      HPRichTextV2({
-        richTextModel: this.richTextModel,
-      });
-    }
-  }
-
-  getTextRichTextModel(text: string): RichTextOptionModelV2 {
-    const model: RichTextOptionModelV2 = new RichTextOptionModelV2();
-    let displayContent: string = this.processContent(text);
-    model.richTextOption = {
-      content: displayContent,
-      baseFontSize: $r("app.float.content_text_font"),
-      baseFontColor: $r("app.color.text_primary"),
-    };
-    model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
-      let linkValue: string | undefined = undefined;
-      if (e !== null && e !== undefined) {
-        if (e.link !== undefined) {
-          linkValue = e.link;
-        } else if (e.href !== undefined) {
-          linkValue = e.href;
-        }
-      }
-      if (linkValue !== undefined) {
-        if (linkValue.startsWith("reply:")) {
-          const replyId: string = linkValue.substring(6);
-          if (this.onJumpToReply) {
-            this.onJumpToReply(replyId);
-          }
-          return e;
-        }
-        this.openLink(linkValue);
-      } else if (e !== null && e !== undefined && e.text !== undefined) {
-        const text: string = e.text;
-        const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
-        if (urlMatch !== null && urlMatch.length > 0) {
-          this.openLink(urlMatch[0]);
-        }
-      }
-      return e;
-    };
-    return model;
   }
 
   async openLink(url: string) {
@@ -407,7 +396,23 @@ export struct ReplyItem {
               .margin({ top: 10 });
           }
           Column() {
-            this.contentBuilder()
+            if (this.hasSpoiler()) {
+              Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Start }) {
+                ForEach(this.contentSegments, (segment: ContentSegment, index: number) => {
+                  if (segment.type === "text") {
+                    HPRichTextV2({
+                      richTextModel: this.getRichTextModelForText(segment.content),
+                    });
+                  } else {
+                    SpoilerText({ text: segment.content });
+                  }
+                })
+              }.width("100%");
+            } else {
+              HPRichTextV2({
+                richTextModel: this.richTextModel,
+              });
+            }
           }
           .id("content")
           .alignRules({
