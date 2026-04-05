@@ -129,6 +129,7 @@ struct SettingsPage {
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
   @State showPrivatePage: boolean = false;
+  @State showCookieHelp: boolean = false;
   @State appVersion: string = "";
   @State initialCookieHash: string = "";
 
@@ -369,6 +370,33 @@ struct SettingsPage {
   }
 
   @Builder
+  cookieHelpSheet(){
+    Column() {
+      Row() {
+        Text(`帮助`)
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r("app.color.text_primary"))
+          .layoutWeight(1)
+          .textAlign(TextAlign.Start)
+      }
+      .width("100%")
+      .padding({ left: 16, right: 16, top: 24, bottom: 24 })
+      Scroll() {
+        Image($r("app.media.cookiehelp"))
+          .height("auto")
+      }
+      .edgeEffect(EdgeEffect.Spring)
+      .width("100%")
+      .padding({ left: 16, right: 16, bottom: 32 })
+    }
+    .width("100%")
+    .height("100%")
+    .backgroundColor($r("app.color.card_background"))
+    .borderRadius({ topLeft: 16, topRight: 16 });
+  }
+
+  @Builder
   webDialogContent() {
     Column() {
       Row() {
@@ -389,7 +417,18 @@ struct SettingsPage {
           .fontColor($r("app.color.text_primary"))
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
-        Blank().width(44)
+        Blank()
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.questionmark_circle"))
+            .fontSize(20)
+            .fontColor([$r("app.color.text_primary")])
+        }
+        .backgroundColor("transparent")
+        .width(44)
+        .height(44)
+        .onClick(() => {
+          this.showCookieHelp = true;
+        })
       }
       .width("100%")
       .padding({ left: 8, right: 8, top: 44, bottom: 8 })
@@ -679,6 +718,13 @@ struct SettingsPage {
       }
       .width("100%")
       .padding({ left: 8, right: 8, top: 44, bottom: 8 })
+      // 不是哥们
+      .bindSheet(this.showCookieHelp, this.cookieHelpSheet(), {
+        modalTransition: ModalTransition.DEFAULT,
+        onDisappear: () => {
+          this.showCookieHelp = false;
+        },
+      });
       List() {
         ListItemGroup({ header: this.cookieHeader }) {
           if (this.cookies.length === 0) {
@@ -822,6 +868,17 @@ struct SettingsPage {
             .onClick(() => {
               this.showPrivatePage = true;
             })
+
+          }
+          ListItem() {
+            Row() {
+              Text("“人，是会思考的芦苇。”——帕斯卡，《思想录》\n" +
+                "\"开放包容 理性客观 有事说事 就事论事 顺猴者昌 逆猴者亡\"")
+                .fontSize(12)
+                .fontColor($r("app.color.text_primary"))
+            }
+            .width("100%")
+            .padding(16)
           }
         }
       }
@@ -839,7 +896,7 @@ struct SettingsPage {
         onDisappear: () => {
           this.showWebSheet = false;
         },
-      })
+      });
     }
     .width("100%")
     .height("100%")

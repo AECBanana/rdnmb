@@ -312,7 +312,7 @@ struct ThreadDetailPage {
       this.threadRichTextModel.richTextOption = {
         content: displayContent,
         baseFontSize: $r("app.float.content_text_font"),
-        baseFontColor: $r("app.color.text_secondary"),
+        baseFontColor: $r("app.color.text_primary"),
       };
     }
   }

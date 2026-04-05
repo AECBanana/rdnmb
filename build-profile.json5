@@ -5,13 +5,26 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "C:/Users/AeCw/Downloads/hmos.p12",
-          "storePassword": "00000030347A1198C098000FCF39F456FCE7C585AB6ED6F64D75AEEF4132BE4F6B4D5145F55E276AB5850672502FB0567CA61B33AD9AA8FC4FCFCC5BEFDAAFC8",
-          "keyAlias": "114514",
-          "keyPassword": "000000307F735243D24FD2200DBAC10028FD1D35640E3EF0999D2F9F8E89B95C659092940078A6DA142795B70C7236A59A070525E3E390AB5519C1DF4E38983E",
+          "certpath": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B9AAFABB726490C585CE03B62B03785E18149431DA9EE3FDB47CE002C1646AC0FFC9E7C9C45116A",
+          "profile": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p7b",
           "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p12",
+          "storePassword": "0000001B6A9C27E39617F36BF39016BE12A1E8E8BE1E56BBBD835061A4EB74A74B55B43371E858F1EB346D"
+        }
+      },
+      {
+        "name": "release",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:/Users/AeCw/Downloads/hmos.cer",
+          "keyAlias": "114514",
+          "keyPassword": "00000030DF8FABD3BEBB761717E01526F6237114B73FE363987C04936AFE9D1112096DA52743A83B23B70A8F55A0473008E6EDCE13651935753673BFE5387DBB",
           "profile": "C:/Users/AeCw/Downloads/testRelease.p7b",
-          "certpath": "C:/Users/AeCw/Downloads/hmos.cer"
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/AeCw/Downloads/hmos.p12",
+          "storePassword": "00000030030772BCC2D4887C7DA23C9B405BED9C52FEC6D36B9D0EBCBAC1CAF5F8206D802313A24E788C9B7936C8A968166351EF9B7FA53C2674CAB3E43C0B6A"
         }
       }
     ],
