@@ -5,10 +5,21 @@ import { fileIo } from "@kit.CoreFileKit";
 import { resourceManager } from "@kit.LocalizationKit";
 import { util } from "@kit.ArkTS";
 import { SettingsManager } from "../utils/SettingsManager";
+import { cameraPicker, camera } from "@kit.CameraKit";
+import { common } from "@kit.AbilityKit";
+import { BusinessError } from "@kit.BasicServicesKit";
 
 interface EmojiCategory {
   name: string;
   emojis: string[];
+}
+
+interface PostDraft {
+  title: string;
+  content: string;
+  name: string;
+  email: string;
+  water: string;
 }
 @Component
 export struct PostSheet {
@@ -16,22 +27,48 @@ export struct PostSheet {
   private settingsManager: SettingsManager = SettingsManager.getInstance();
   @Prop fid: string = "";
   @Prop boardName: string = "";
-  @State title: string = "";
-  @State content: string = "";
-  @State name: string = "";
-  @State email: string = "";
-  @State water: string = "";
+  @State @Watch("onDraftChange") title: string = "";
+  @State @Watch("onDraftChange") content: string = "";
+  @State @Watch("onDraftChange") name: string = "";
+  @State @Watch("onDraftChange") email: string = "";
+  @State @Watch("onDraftChange") water: string = "";
   @State isPosting: boolean = false;
   @State errorMessage: string = "";
   @State successMessage: string = "";
   @State selectedImageUri: string = "";
   @State selectedImageName: string = "";
-  @State showEmojiPicker: boolean = false;
+  @State @Watch("onEmojiPickerChange") showEmojiPicker: boolean = false;
   @State currentEmojiCategory: number = 0;
   @State emojiCategories: EmojiCategory[] = [];
   @State favoriteEmojis: string[] = [];
   @Link isShow: boolean;
   onPostSuccess?: (threadId: string) => void;
+  private categoryScroller: Scroller = new Scroller();
+  private isLoadingDraft: boolean = true;
+
+  onDraftChange(): void {
+    if (this.isLoadingDraft) {
+      return;
+    }
+    if (this.fid.length > 0) {
+      const draft: PostDraft = {
+        title: this.title,
+        content: this.content,
+        name: this.name,
+        email: this.email,
+        water: this.water,
+      };
+      this.settingsManager.savePostDraft(this.fid, JSON.stringify(draft));
+    }
+  }
+
+  onEmojiPickerChange(show: boolean): void {
+    if (show) {
+      setTimeout(() => {
+        this.categoryScroller.scrollToIndex(this.currentEmojiCategory, false, ScrollAlign.CENTER);
+      }, 100);
+    }
+  }
 
   async aboutToAppear(): Promise<void> {
     await this.settingsManager.waitForInit();
@@ -45,6 +82,24 @@ export struct PostSheet {
     } else {
       this.currentEmojiCategory = savedCategory;
     }
+
+    if (this.fid.length > 0) {
+      const savedDraft: string = await this.settingsManager.loadPostDraft(this.fid);
+      if (savedDraft.length > 0) {
+        try {
+          const draft: PostDraft = JSON.parse(savedDraft) as PostDraft;
+          this.title = draft.title;
+          this.content = draft.content;
+          this.name = draft.name;
+          this.email = draft.email;
+          this.water = draft.water;
+        } catch (error) {
+          console.error(`[PostSheet] Parse draft failed: ${error}`);
+        }
+      }
+    }
+
+    this.isLoadingDraft = false;
   }
 
   async loadEmojiData(): Promise<void> {
@@ -79,6 +134,31 @@ export struct PostSheet {
     } catch (error) {
       console.error(`[PostSheet] Select image error: ${error}`);
       this.errorMessage = "选择图片失败";
+    }
+  }
+
+  async takePhoto(): Promise<void> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK,
+      };
+      const pickerResult: cameraPicker.PickerResult = await cameraPicker.pick(
+        context,
+        [cameraPicker.PickerMediaType.PHOTO],
+        pickerProfile,
+      );
+
+      if (pickerResult && pickerResult.resultUri) {
+        this.selectedImageUri = pickerResult.resultUri;
+        const uriParts: string[] = this.selectedImageUri.split("/");
+        this.selectedImageName = uriParts[uriParts.length - 1] || "photo.jpg";
+        console.info(`[PostSheet] Took photo: ${this.selectedImageUri}`);
+      }
+    } catch (error) {
+      const err = error as BusinessError;
+      console.error(`[PostSheet] Take photo error: ${err.code}`);
+      this.errorMessage = "拍照失败";
     }
   }
 
@@ -173,6 +253,9 @@ export struct PostSheet {
       this.water = "";
       this.selectedImageUri = "";
       this.selectedImageName = "";
+      if (this.fid.length > 0) {
+        await this.settingsManager.clearPostDraft(this.fid);
+      }
       if (this.onPostSuccess) {
         this.onPostSuccess(result);
         this.getUIContext().getPromptAction().showToast({ message: "发串成功" });
@@ -199,7 +282,7 @@ export struct PostSheet {
   @Builder
   emojiGridBuilder() {
     Column() {
-      Scroll() {
+      Scroll(this.categoryScroller) {
         Row() {
           ForEach(this.getDisplayCategories(), (category: EmojiCategory, index: number) => {
             Button(category.name)
@@ -222,6 +305,7 @@ export struct PostSheet {
         }
         .padding({ bottom: 8 })
       }
+      .edgeEffect(EdgeEffect.Spring)
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
       .width("100%")
@@ -297,6 +381,7 @@ export struct PostSheet {
           .onChange((value: string) => {
             this.title = value;
           })
+          .margin({ bottom: 16 })
         TextArea({ text: this.content, placeholder: "输入内容..." })
           .width("100%")
           .height(120)
@@ -358,6 +443,18 @@ export struct PostSheet {
           .onClick(() => {
             this.selectImage();
           })
+          Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r("sys.symbol.camera"))
+              .fontSize(14)
+              .fontColor([$r("app.color.text_secondary")])
+          }
+          .backgroundColor(Color.Transparent)
+          .height(36)
+          .width(36)
+          .margin({ left: 16 })
+          .onClick(() => {
+            this.takePhoto();
+          })
           Blank()
           Button() {
             Text("发送")
@@ -379,55 +476,6 @@ export struct PostSheet {
         if (this.showEmojiPicker) {
           this.emojiGridBuilder();
         }
-        Column() {
-          Text("更多选项")
-            .fontSize(12)
-            .fontColor($r("app.color.text_secondary"))
-            .width("100%")
-            .margin({ bottom: 8, top: 16 })
-          Row() {
-            Text("昵称")
-              .fontSize(14)
-              .fontColor($r("app.color.text_secondary"))
-              .width(60)
-            TextInput({ text: this.name, placeholder: "可选" })
-              .layoutWeight(1)
-              .height(36)
-              .onChange((value: string) => {
-                this.name = value;
-              })
-          }
-          .width("100%")
-          .margin({ bottom: 8 })
-          Row() {
-            Text("邮箱")
-              .fontSize(14)
-              .fontColor($r("app.color.text_secondary"))
-              .width(60)
-            TextInput({ text: this.email, placeholder: "可选" })
-              .layoutWeight(1)
-              .height(36)
-              .onChange((value: string) => {
-                this.email = value;
-              })
-          }
-          .width("100%")
-          .margin({ bottom: 8 })
-          Row() {
-            Text("水印")
-              .fontSize(14)
-              .fontColor($r("app.color.text_secondary"))
-              .width(60)
-            TextInput({ text: this.water, placeholder: "可选" })
-              .layoutWeight(1)
-              .height(36)
-              .onChange((value: string) => {
-                this.water = value;
-              })
-          }.width("100%")
-        }
-        .width("100%")
-        .padding({ top: 8 })
       }
       .width("100%")
       .padding({ left: 16, right: 16, bottom: 32 })

@@ -8,7 +8,10 @@ import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
 import { ThreadReadPosition } from "../utils/CacheManager";
 import { CacheManager } from "../utils/CacheManager";
 import { ReplySheet } from "../components/ReplySheet";
+import { SettingsManager } from "../utils/SettingsManager";
+import { FavoriteThread } from "../models/FavoriteThread";
 import common from "@ohos.app.ability.common";
+import { pasteboard } from "@kit.BasicServicesKit";
 
 interface ThreadPageParams {
   threadId?: number;
@@ -17,6 +20,84 @@ interface ThreadPageParams {
 interface LinkPressEvent {
   href?: string;
   text?: string;
+}
+
+interface ContentSegment {
+  type: "text" | "spoiler";
+  content: string;
+}
+
+@Component
+struct SpoilerText {
+  @Prop text: string = "";
+  @State isRevealed: boolean = false;
+
+  build() {
+    Text(this.text)
+      .fontSize($r("app.float.content_text_font"))
+      .fontColor(this.isRevealed ? $r("app.color.text_secondary") : $r("app.color.spoiler_bg"))
+      .backgroundColor(this.isRevealed ? Color.Transparent : $r("app.color.spoiler_bg"))
+      .borderRadius(4)
+      .padding({ left: 4, right: 4 })
+      .onClick(() => {
+        this.isRevealed = true;
+      });
+  }
+}
+
+@CustomDialog
+struct JumpPageDialog {
+  controller: CustomDialogController;
+  @Prop currentPage: number = 1;
+  @Prop totalPages: number = 1;
+  @State inputPage: string = "";
+  onJump: (page: number) => void = () => {};
+
+  build() {
+    Column() {
+      Text("跳转页数")
+        .fontSize(18)
+        .fontWeight(FontWeight.Bold)
+        .margin({ bottom: 16 })
+      Text(`当前第 ${this.currentPage} 页，共 ${this.totalPages} 页`)
+        .fontSize(14)
+        .fontColor($r("app.color.text_secondary"))
+        .margin({ bottom: 16 })
+      TextInput({ text: $$this.inputPage, placeholder: "输入页数" })
+        .type(InputType.Number)
+        .maxLength(this.totalPages)
+        .width("100%")
+        .height(44)
+        .margin({ bottom: 16 })
+      Row() {
+        Button("取消")
+          .width("45%")
+          .height(40)
+          .fontColor($r("app.color.text_primary"))
+          .backgroundColor(Color.Transparent)
+          .onClick(() => {
+            this.controller.close();
+          })
+        Button("跳转")
+          .width("45%")
+          .height(40)
+          .backgroundColor($r("app.color.primary"))
+          .onClick(() => {
+            const page: number = parseInt(this.inputPage);
+            if (page >= 1 && page <= this.totalPages) {
+              this.onJump(page);
+              this.controller.close();
+            }
+          })
+      }
+      .width("100%")
+      .justifyContent(FlexAlign.SpaceBetween)
+    }
+    .padding(20)
+    .margin(16)
+    .backgroundColor($r("app.color.card_background"))
+    .borderRadius(16);
+  }
 }
 
 @Entry
@@ -39,8 +120,11 @@ struct ThreadDetailPage {
   @State savedLastReplyId: number = 0;
   @State shouldScrollToReply: boolean = false;
   @State showReplySheet: boolean = false;
+  @State isAtTop: boolean = false;
+  @State overscrollOffset: number = 0;
   @State replyToId: string = "";
   @State highlightedReplyId: number = 0;
+  @State isFavorite: boolean = false;
 
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
@@ -48,12 +132,16 @@ struct ThreadDetailPage {
   private threadRichTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
   private visibleEndIndex: number = 0;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+  private settingsManager: SettingsManager = SettingsManager.getInstance();
+  private jumpPageDialogController: CustomDialogController | null = null;
+  private threadContentSegments: ContentSegment[] = [];
 
   aboutToAppear() {
     const params = router.getParams() as ThreadPageParams;
     if (params && params.threadId) {
       this.threadId = params.threadId;
     }
+    this.isFavorite = this.settingsManager.isThreadFavorite(this.threadId);
     this.threadRichTextModel.richTextOption = {
       content: "",
       baseFontSize: $r("app.float.content_text_font"),
@@ -89,6 +177,95 @@ struct ThreadDetailPage {
   convertUrlsToLinks(content: string): string {
     const urlPattern: RegExp = /(https?:\/\/[^\s<>"']+)/g;
     return content.replace(urlPattern, '<a href="$1">$1</a>');
+  }
+
+  splitContentBySpoilers(content: string): ContentSegment[] {
+    const segments: ContentSegment[] = [];
+    const spoilerPattern: RegExp = /\[h\]([\s\S]*?)\[\/h\]/g;
+    let lastIndex: number = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = spoilerPattern.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        segments.push({
+          type: "text",
+          content: content.substring(lastIndex, match.index),
+        });
+      }
+      segments.push({
+        type: "spoiler",
+        content: match[1],
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < content.length) {
+      segments.push({
+        type: "text",
+        content: content.substring(lastIndex),
+      });
+    }
+
+    return segments;
+  }
+
+  hasSpoiler(): boolean {
+    for (const segment of this.threadContentSegments) {
+      if (segment.type === "spoiler") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Builder
+  threadContentBuilder() {
+    if (this.hasSpoiler()) {
+      Column() {
+        ForEach(this.threadContentSegments, (segment: ContentSegment, index: number) => {
+          if (segment.type === "text") {
+            HPRichTextV2({
+              richTextModel: this.getTextRichTextModel(segment.content),
+            });
+          } else {
+            SpoilerText({ text: segment.content });
+          }
+        })
+      }.width("100%");
+    } else {
+      HPRichTextV2({
+        richTextModel: this.threadRichTextModel,
+      });
+    }
+  }
+
+  getTextRichTextModel(text: string): RichTextOptionModelV2 {
+    const model: RichTextOptionModelV2 = new RichTextOptionModelV2();
+    let displayContent: string = this.processContent(text);
+    model.richTextOption = {
+      content: displayContent,
+      baseFontSize: $r("app.float.content_text_font"),
+      baseFontColor: $r("app.color.text_secondary"),
+    };
+    model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
+      let url: string | undefined = undefined;
+      if (e !== null && e !== undefined) {
+        if (e.href !== undefined) {
+          url = e.href;
+        } else if (e.text !== undefined) {
+          const text: string = e.text;
+          const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
+          if (urlMatch !== null && urlMatch.length > 0) {
+            url = urlMatch[0];
+          }
+        }
+      }
+      if (url !== undefined) {
+        this.openLink(url);
+      }
+      return e;
+    };
+    return model;
   }
 
   async openLink(url: string) {
@@ -138,11 +315,19 @@ struct ThreadDetailPage {
 
   updateThreadRichTextModel(): void {
     if (this.thread) {
-      let displayContent: string = this.processContent(this.thread.content);
+      let content: string = this.thread.content.replace(/\\n/g, "").replace(/\n/g, "");
+      this.threadContentSegments = this.splitContentBySpoilers(content);
+      let textContent: string = "";
+      for (const segment of this.threadContentSegments) {
+        if (segment.type === "text") {
+          textContent += segment.content;
+        }
+      }
+      let displayContent: string = this.processContent(textContent);
       this.threadRichTextModel.richTextOption = {
         content: displayContent,
         baseFontSize: $r("app.float.content_text_font"),
-        baseFontColor: $r("app.color.text_primary"),
+        baseFontColor: $r("app.color.text_secondary"),
       };
     }
   }
@@ -333,6 +518,12 @@ struct ThreadDetailPage {
   threadMenuBuilder() {
     Menu() {
       MenuItem({
+        content: this.isFavorite ? "󰀉 取消收藏" : "󰁎 收藏",
+      })
+        .onClick(() => {
+          this.toggleFavorite();
+        })
+      MenuItem({
         content: "󰁬 回复",
       })
         .onClick(() => {
@@ -341,7 +532,81 @@ struct ThreadDetailPage {
             this.showReplySheet = true;
           }
         })
+      MenuItem({
+        content: "󰢨 跳转页数",
+      })
+        .onClick(() => {
+          this.jumpPageDialogController = new CustomDialogController({
+            builder: JumpPageDialog({
+              currentPage: this.currentPage,
+              totalPages: this.totalPages,
+              onJump: (page: number) => {
+                this.jumpToPage(page);
+              },
+            }),
+            customStyle: true,
+            alignment: DialogAlignment.Center,
+          });
+          this.jumpPageDialogController.open();
+        })
     };
+  }
+
+  jumpToPage(page: number): void {
+    if (page === this.currentPage) {
+      return;
+    }
+    this.replies = [];
+    this.currentPage = page;
+    this.minLoadedPage = page;
+    this.maxLoadedPage = page;
+    this.loadThread(this.threadId, page);
+  }
+
+  async toggleFavorite() {
+    if (!this.thread) {
+      return;
+    }
+    const favorite: FavoriteThread = new FavoriteThread({
+      id: this.thread.id,
+      title: this.thread.title || "",
+      content: this.thread.content,
+      thumbnailUrl: this.thread.thumbnailUrl,
+      userId: this.thread.userId,
+      createdAt: this.thread.createdAtText,
+      savedAt: Date.now(),
+      fid: this.thread.boardId,
+      replyCount: this.thread.totalReplyCount,
+    });
+    this.isFavorite = await this.settingsManager.toggleFavoriteThread(favorite);
+    console.info(`[ThreadPage] Toggled favorite: ${this.threadId}, isFavorite: ${this.isFavorite}`);
+  }
+
+  @Builder
+  threadContentMenuBuilder() {
+    Menu() {
+      MenuItem({
+        content: "󰆊 复制内容",
+      })
+        .onClick(() => {
+          this.copyThreadContent();
+        })
+    };
+  }
+
+  copyThreadContent(): void {
+    if (!this.thread) {
+      return;
+    }
+    const rawContent: string = this.thread.content;
+    const cleanContent: string = rawContent.replace(/\\n/g, "\n").replace(/<br\s*\/?>/gi, "\n");
+    const pasteboardData: pasteboard.PasteData = pasteboard.createData(
+      pasteboard.MIMETYPE_TEXT_PLAIN,
+      cleanContent,
+    );
+    const systemPasteboard: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+    systemPasteboard.setData(pasteboardData);
+    console.info(`[ThreadPage] Thread content copied to clipboard`);
   }
 
   @Builder
@@ -373,9 +638,7 @@ struct ThreadDetailPage {
         }
         Stack({ alignContent: Alignment.TopStart }) {
           Column() {
-            HPRichTextV2({
-              richTextModel: this.threadRichTextModel,
-            })
+            this.threadContentBuilder()
           }
           .width("100%")
           .padding({ left: this.thread.thumbnailUrl ? 132 : 0 })
@@ -386,6 +649,10 @@ struct ThreadDetailPage {
         }
         .width("100%")
         .margin({ top: 12 })
+        .bindContextMenu(
+          this.threadContentMenuBuilder,
+          ResponseType.LongPress | ResponseType.RightClick,
+        )
         Row() {
           Text(`回复: ${this.thread.totalReplyCount}`)
             .fontSize(14)
@@ -404,7 +671,9 @@ struct ThreadDetailPage {
     Column() {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.arrow_left")).fontSize(24).fontColor([$r("app.color.text_secondary")])
+          SymbolGlyph($r("sys.symbol.arrow_left"))
+            .fontSize(24)
+            .fontColor([$r("app.color.text_secondary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -419,7 +688,9 @@ struct ThreadDetailPage {
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
         Button({ type: ButtonType.Circle, stateEffect: true }) {
-          SymbolGlyph($r("sys.symbol.ellipsis_circle")).fontSize(24).fontColor([$r("app.color.text_secondary")])
+          SymbolGlyph($r("sys.symbol.dot_grid_2x2"))
+            .fontSize(24)
+            .fontColor([$r("app.color.text_secondary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -527,20 +798,27 @@ struct ThreadDetailPage {
           .padding({ bottom: 8 })
           .onScrollIndex((start: number, end: number) => {
             this.visibleEndIndex = end;
-            if (
-              this.hasPreviousPage() &&
-              !this.isLoadingPrevious &&
-              !this.isLoading &&
-              start <= 2
-            ) {
-              this.loadPreviousPage();
+            this.isAtTop = start === 0;
+          })
+          .onScrollFrameBegin((offset: number) => {
+            if (this.isAtTop && offset < 0) {
+              this.overscrollOffset = this.overscrollOffset + -offset;
+              if (
+                this.overscrollOffset >= 64 &&
+                this.hasPreviousPage() &&
+                !this.isLoadingPrevious &&
+                !this.isLoading
+              ) {
+                this.overscrollOffset = 0;
+                this.loadPreviousPage();
+              }
+            } else {
+              this.overscrollOffset = 0;
             }
-            if (
-              this.hasNextPage() &&
-              !this.isLoadingMore &&
-              !this.isLoading &&
-              end >= this.replies.length - 2
-            ) {
+            return { offsetRemain: offset };
+          })
+          .onReachEnd(() => {
+            if (this.hasNextPage() && !this.isLoadingMore && !this.isLoading) {
               this.loadNextPage();
             }
           })
@@ -549,7 +827,11 @@ struct ThreadDetailPage {
         .layoutWeight(1)
         .refreshOffset(64)
         .onRefreshing(() => {
-          this.refreshThread();
+          if (this.minLoadedPage === 1) {
+            this.refreshThread();
+          } else {
+            this.isRefreshing = false;
+          }
         });
       }
     }

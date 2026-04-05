@@ -111,6 +111,10 @@
     {
       "name": "emoji_button_background",
       "value": "#FFF6F6F6"
+    },
+    {
+      "name": "spoiler_bg",
+      "value": "#333333"
     }
   ]
 }

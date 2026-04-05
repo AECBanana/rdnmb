@@ -99,6 +99,10 @@
     {
       "name": "emoji_button_background",
       "value": "#1E1E1E"
+    },
+    {
+      "name": "spoiler_bg",
+      "value": "#666666"
     }
   ]
 }

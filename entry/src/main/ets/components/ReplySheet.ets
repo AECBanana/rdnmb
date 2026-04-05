@@ -5,6 +5,9 @@ import { fileIo } from "@kit.CoreFileKit";
 import { resourceManager } from "@kit.LocalizationKit";
 import { util } from "@kit.ArkTS";
 import { SettingsManager } from "../utils/SettingsManager";
+import { cameraPicker, camera } from "@kit.CameraKit";
+import { common } from "@kit.AbilityKit";
+import { BusinessError } from "@kit.BasicServicesKit";
 
 interface EmojiCategory {
   name: string;
@@ -17,18 +20,37 @@ export struct ReplySheet {
   @Prop resto: string = "";
   @Prop threadId: string = "";
   @Prop replyToId: string = "";
-  @State content: string = "";
+  @State @Watch("onContentChange") content: string = "";
   @State isPosting: boolean = false;
   @State errorMessage: string = "";
   @State successMessage: string = "";
   @State selectedImageUri: string = "";
   @State selectedImageName: string = "";
-  @State showEmojiPicker: boolean = false;
+  @State @Watch("onEmojiPickerChange") showEmojiPicker: boolean = false;
   @State currentEmojiCategory: number = 0;
   @State emojiCategories: EmojiCategory[] = [];
   @State favoriteEmojis: string[] = [];
   @Link isShow: boolean;
   onReplySuccess?: (replyId: string) => void;
+  private categoryScroller: Scroller = new Scroller();
+  private isLoadingDraft: boolean = true;
+
+  onContentChange(): void {
+    if (this.isLoadingDraft) {
+      return;
+    }
+    if (this.threadId.length > 0) {
+      this.settingsManager.saveReplyDraft(this.threadId, this.content);
+    }
+  }
+
+  onEmojiPickerChange(show: boolean): void {
+    if (show) {
+      setTimeout(() => {
+        this.categoryScroller.scrollToIndex(this.currentEmojiCategory, false, ScrollAlign.CENTER);
+      }, 100);
+    }
+  }
 
   async aboutToAppear(): Promise<void> {
     await this.settingsManager.waitForInit();
@@ -43,9 +65,18 @@ export struct ReplySheet {
       this.currentEmojiCategory = savedCategory;
     }
 
-    if (this.replyToId.length > 0) {
+    if (this.threadId.length > 0) {
+      const savedDraft: string = await this.settingsManager.loadReplyDraft(this.threadId);
+      if (savedDraft.length > 0) {
+        this.content = savedDraft;
+      } else if (this.replyToId.length > 0) {
+        this.content = `>>No.${this.replyToId}\n`;
+      }
+    } else if (this.replyToId.length > 0) {
       this.content = `>>No.${this.replyToId}\n`;
     }
+
+    this.isLoadingDraft = false;
   }
 
   async loadEmojiData(): Promise<void> {
@@ -80,6 +111,31 @@ export struct ReplySheet {
     } catch (error) {
       console.error(`[ReplySheet] Select image error: ${error}`);
       this.errorMessage = "选择图片失败";
+    }
+  }
+
+  async takePhoto(): Promise<void> {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const pickerProfile: cameraPicker.PickerProfile = {
+        cameraPosition: camera.CameraPosition.CAMERA_POSITION_BACK,
+      };
+      const pickerResult: cameraPicker.PickerResult = await cameraPicker.pick(
+        context,
+        [cameraPicker.PickerMediaType.PHOTO],
+        pickerProfile,
+      );
+
+      if (pickerResult && pickerResult.resultUri) {
+        this.selectedImageUri = pickerResult.resultUri;
+        const uriParts: string[] = this.selectedImageUri.split("/");
+        this.selectedImageName = uriParts[uriParts.length - 1] || "photo.jpg";
+        console.info(`[ReplySheet] Took photo: ${this.selectedImageUri}`);
+      }
+    } catch (error) {
+      const err = error as BusinessError;
+      console.error(`[ReplySheet] Take photo error: ${err.code}`);
+      this.errorMessage = "拍照失败";
     }
   }
 
@@ -164,6 +220,9 @@ export struct ReplySheet {
       this.content = "";
       this.selectedImageUri = "";
       this.selectedImageName = "";
+      if (this.threadId.length > 0) {
+        await this.settingsManager.clearReplyDraft(this.threadId);
+      }
       if (this.onReplySuccess) {
         this.onReplySuccess(result);
         this.getUIContext().getPromptAction().showToast({ message: "回复成功" });
@@ -190,7 +249,7 @@ export struct ReplySheet {
   @Builder
   emojiGridBuilder() {
     Column() {
-      Scroll() {
+      Scroll(this.categoryScroller) {
         Row() {
           ForEach(this.getDisplayCategories(), (category: EmojiCategory, index: number) => {
             Button(category.name)
@@ -213,6 +272,7 @@ export struct ReplySheet {
         }
         .padding({ bottom: 8 })
       }
+      .edgeEffect(EdgeEffect.Spring)
       .scrollable(ScrollDirection.Horizontal)
       .scrollBar(BarState.Off)
       .width("100%")
@@ -343,6 +403,18 @@ export struct ReplySheet {
           .margin({ left: 16 })
           .onClick(() => {
             this.selectImage();
+          })
+          Button({ type: ButtonType.Circle }) {
+            SymbolGlyph($r("sys.symbol.camera"))
+              .fontSize(14)
+              .fontColor([$r("app.color.text_secondary")])
+          }
+          .backgroundColor(Color.Transparent)
+          .height(36)
+          .width(36)
+          .margin({ left: 16 })
+          .onClick(() => {
+            this.takePhoto();
           })
           Blank()
           Button() {

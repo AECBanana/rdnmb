@@ -11,6 +11,14 @@
     {
       "name": "EntryAbility_label",
       "value": "R岛"
+    },
+    {
+      "name": "camera_permission_reason",
+      "value": "相机权限申请，仅用户点击拍照获取图片时使用。"
+    },
+    {
+      "name": "appVersion",
+      "value": "20260405-0"
     }
   ]
 }

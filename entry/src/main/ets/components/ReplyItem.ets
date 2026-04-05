@@ -2,11 +2,35 @@ import { Post } from "../models/Post";
 import { PostImage } from "./PostImage";
 import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
 import common from "@ohos.app.ability.common";
+import { pasteboard } from "@kit.BasicServicesKit";
 
 interface LinkPressEvent {
   href?: string;
   link?: string;
   text?: string;
+}
+
+interface ContentSegment {
+  type: "text" | "spoiler";
+  content: string;
+}
+
+@Component
+struct SpoilerText {
+  @Prop text: string = "";
+  @State isRevealed: boolean = false;
+
+  build() {
+    Text(this.text)
+      .fontSize($r("app.float.content_text_font"))
+      .fontColor(this.isRevealed ? $r("app.color.text_primary") : $r("app.color.spoiler_bg"))
+      .backgroundColor(this.isRevealed ? Color.Transparent : $r("app.color.spoiler_bg"))
+      .borderRadius(4)
+      .padding({ left: 4, right: 4 })
+      .onClick(() => {
+        this.isRevealed = true;
+      });
+  }
 }
 @Component
 export struct ReplyItem {
@@ -21,9 +45,47 @@ export struct ReplyItem {
   private richTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
   private tipsId: number = 9999999;
   private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
+  private contentSegments: ContentSegment[] = [];
 
   aboutToAppear(): void {
+    this.parseContent();
+  }
+
+  parseContent(): void {
+    let rawContent: string = this.content.length > 0 ? this.content : this.reply.content;
+    let content: string = rawContent.replace(/\\n/g, "").replace(/\n/g, "");
+    this.contentSegments = this.splitContentBySpoilers(content);
     this.updateRichText();
+  }
+
+  splitContentBySpoilers(content: string): ContentSegment[] {
+    const segments: ContentSegment[] = [];
+    const spoilerPattern: RegExp = /\[h\]([\s\S]*?)\[\/h\]/g;
+    let lastIndex: number = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = spoilerPattern.exec(content)) !== null) {
+      if (match.index > lastIndex) {
+        segments.push({
+          type: "text",
+          content: content.substring(lastIndex, match.index),
+        });
+      }
+      segments.push({
+        type: "spoiler",
+        content: match[1],
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < content.length) {
+      segments.push({
+        type: "text",
+        content: content.substring(lastIndex),
+      });
+    }
+
+    return segments;
   }
 
   processContent(rawContent: string): string {
@@ -44,8 +106,13 @@ export struct ReplyItem {
   }
 
   updateRichText(): void {
-    let rawContent: string = this.content.length > 0 ? this.content : this.reply.content;
-    let displayContent: string = this.processContent(rawContent);
+    let textContent: string = "";
+    for (const segment of this.contentSegments) {
+      if (segment.type === "text") {
+        textContent += segment.content;
+      }
+    }
+    let displayContent: string = this.processContent(textContent);
     this.richTextModel.richTextOption = {
       content: displayContent,
       baseFontSize: $r("app.float.content_text_font"),
@@ -82,6 +149,74 @@ export struct ReplyItem {
       }
       return e;
     };
+  }
+
+  hasSpoiler(): boolean {
+    for (const segment of this.contentSegments) {
+      if (segment.type === "spoiler") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @Builder
+  contentBuilder() {
+    if (this.hasSpoiler()) {
+      Column() {
+        ForEach(this.contentSegments, (segment: ContentSegment, index: number) => {
+          if (segment.type === "text") {
+            HPRichTextV2({
+              richTextModel: this.getTextRichTextModel(segment.content),
+            });
+          } else {
+            SpoilerText({ text: segment.content });
+          }
+        })
+      }.width("100%");
+    } else {
+      HPRichTextV2({
+        richTextModel: this.richTextModel,
+      });
+    }
+  }
+
+  getTextRichTextModel(text: string): RichTextOptionModelV2 {
+    const model: RichTextOptionModelV2 = new RichTextOptionModelV2();
+    let displayContent: string = this.processContent(text);
+    model.richTextOption = {
+      content: displayContent,
+      baseFontSize: $r("app.float.content_text_font"),
+      baseFontColor: $r("app.color.text_primary"),
+    };
+    model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
+      let linkValue: string | undefined = undefined;
+      if (e !== null && e !== undefined) {
+        if (e.link !== undefined) {
+          linkValue = e.link;
+        } else if (e.href !== undefined) {
+          linkValue = e.href;
+        }
+      }
+      if (linkValue !== undefined) {
+        if (linkValue.startsWith("reply:")) {
+          const replyId: string = linkValue.substring(6);
+          if (this.onJumpToReply) {
+            this.onJumpToReply(replyId);
+          }
+          return e;
+        }
+        this.openLink(linkValue);
+      } else if (e !== null && e !== undefined && e.text !== undefined) {
+        const text: string = e.text;
+        const urlMatch: RegExpMatchArray | null = text.match(/https?:\/\/[^\s`]+/);
+        if (urlMatch !== null && urlMatch.length > 0) {
+          this.openLink(urlMatch[0]);
+        }
+      }
+      return e;
+    };
+    return model;
   }
 
   async openLink(url: string) {
@@ -153,7 +288,25 @@ export struct ReplyItem {
             this.onReplyClick(String(this.reply.id));
           }
         })
+      MenuItem({
+        content: "󰆊 复制内容",
+      })
+        .onClick(() => {
+          this.copyContent();
+        })
     };
+  }
+
+  copyContent(): void {
+    const rawContent: string = this.content.length > 0 ? this.content : this.reply.content;
+    const cleanContent: string = rawContent.replace(/\\n/g, "\n").replace(/<br\s*\/?>/gi, "\n");
+    const pasteboardData: pasteboard.PasteData = pasteboard.createData(
+      pasteboard.MIMETYPE_TEXT_PLAIN,
+      cleanContent,
+    );
+    const systemPasteboard: pasteboard.SystemPasteboard = pasteboard.getSystemPasteboard();
+    systemPasteboard.setData(pasteboardData);
+    console.info(`[ReplyItem] Content copied to clipboard`);
   }
 
   build() {
@@ -254,9 +407,7 @@ export struct ReplyItem {
               .margin({ top: 10 });
           }
           Column() {
-            HPRichTextV2({
-              richTextModel: this.richTextModel,
-            })
+            this.contentBuilder()
           }
           .id("content")
           .alignRules({
@@ -293,12 +444,12 @@ export struct ReplyItem {
         .backgroundColor(
           this.isHighlighted ? $r("app.color.card_light") : $r("app.color.card_background"),
         )
-        .borderRadius(12)
+        .borderRadius(16)
         .shadow({
           radius: 4,
           color: $r("app.color.card_shadow"),
           offsetX: 0,
-          offsetY: 2,
+          offsetY: 4,
         })
         .bindContextMenu(this.replyMenuBuilder, ResponseType.LongPress | ResponseType.RightClick);
       }

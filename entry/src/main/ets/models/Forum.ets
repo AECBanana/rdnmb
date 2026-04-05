@@ -28,10 +28,25 @@ export class Forum {
 
   get displayName(): string {
     const showName = this.raw.showName;
+    let name: string;
     if (showName !== undefined && showName !== null && showName.length > 0) {
-      return showName;
+      name = showName;
+    } else {
+      name = this.raw.name;
     }
-    return this.raw.name;
+    let result = name;
+    let fontOpenStart = result.indexOf("<font");
+    while (fontOpenStart !== -1) {
+      const fontOpenEnd = result.indexOf(">", fontOpenStart);
+      if (fontOpenEnd !== -1) {
+        result = result.substring(0, fontOpenStart) + result.substring(fontOpenEnd + 1);
+      } else {
+        break;
+      }
+      fontOpenStart = result.indexOf("<font");
+    }
+    result = result.replace(/<\/font>/g, "");
+    return result;
   }
 
   get description(): string {
@@ -43,7 +58,12 @@ export class Forum {
   }
 
   isValid(): boolean {
-    return !(this.raw.fgroup === '42' && this.raw.sort === '42' && this.raw.name === '42' && this.raw.msg === '42');
+    return !(
+      this.raw.fgroup === "42" &&
+      this.raw.sort === "42" &&
+      this.raw.name === "42" &&
+      this.raw.msg === "42"
+    );
   }
 }
 
@@ -71,7 +91,7 @@ export class Community {
   }
 
   get forums(): Forum[] {
-    return this.raw.forums.map(f => new Forum(f)).filter(f => f.isValid());
+    return this.raw.forums.map((f) => new Forum(f)).filter((f) => f.isValid());
   }
 }
 

@@ -128,14 +128,16 @@ struct SettingsPage {
   @State cookies: Cookie[] = [];
   @State selectedCookieHash: string = "";
   @State showWebSheet: boolean = false;
-  @State appVersion: string = "";
   @State initialCookieHash: string = "";
+  @State showPrivacySheet: boolean = false;
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
   private webController: webview.WebviewController = new webview.WebviewController();
+  private privacyWebController: webview.WebviewController = new webview.WebviewController();
   private manualAddDialogController: CustomDialogController | null = null;
   private webCookieCache: Map<string, string> = new Map<string, string>();
+  private context: common.UIAbilityContext = getContext(this) as common.UIAbilityContext;
 
   aboutToAppear() {
     this.calculateCacheSize();
@@ -147,17 +149,6 @@ struct SettingsPage {
       this.webController.stop();
     } catch (error) {
       // TODO: Implement error handling.
-    }
-  }
-
-  async getAppVersion() {
-    try {
-      const bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
-      const bundleInfo = await bundleManager.getBundleInfo("com.ohos.cookies", bundleFlags);
-
-      const version = bundleInfo.versionName;
-    } catch (error) {
-      console.error(error);
     }
   }
 
@@ -224,6 +215,12 @@ struct SettingsPage {
     } catch (error) {
       // TODO: Implement error handling.
     }
+  }
+
+  async openLink(url: string) {
+    try {
+      await this.context.openLink(url);
+    } catch (error) {}
   }
 
   showManualAddDialog() {
@@ -632,7 +629,7 @@ struct SettingsPage {
       Row() {
         Button({ type: ButtonType.Circle, stateEffect: true }) {
           SymbolGlyph($r("sys.symbol.arrow_left"))
-            .fontColor([$r("app.color.text_secondary")])
+            .fontColor([$r("app.color.text_primary")])
         }
         .backgroundColor("transparent")
         .width(48)
@@ -691,16 +688,6 @@ struct SettingsPage {
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
-                  if (this.selectedCookieHash !== cookie.cookieHash) {
-                    Button("使用")
-                      .fontSize(12)
-                      .fontColor($r("app.color.primary"))
-                      .backgroundColor("transparent")
-                      .margin({ right: 8 })
-                      .onClick(() => {
-                        this.selectCookie(cookie.cookieHash);
-                      });
-                  }
                   Button("删除")
                     .fontSize(12)
                     .fontColor("#ff6b6b")
@@ -722,6 +709,16 @@ struct SettingsPage {
                         },
                       });
                     })
+
+                  if (this.selectedCookieHash !== cookie.cookieHash) {
+                    Button("使用")
+                      .fontSize(12)
+                      .fontColor($r("app.color.primary"))
+                      .backgroundColor("transparent")
+                      .onClick(() => {
+                        this.selectCookie(cookie.cookieHash);
+                      });
+                  }
                 }
                 .margin({ bottom: 16 })
                 .width("100%")
@@ -772,7 +769,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("1.0.0")
+              Text($r("app.string.appVersion"))
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
@@ -791,6 +788,38 @@ struct SettingsPage {
             }
             .width("100%")
             .padding(16)
+          }
+          ListItem() {
+            Row() {
+              Text("问题反馈")
+                .fontSize(16)
+                .fontColor($r("app.color.text_primary"))
+                .layoutWeight(1)
+              Text("Github 󰃙")
+                .fontSize(14)
+                .fontColor($r("app.color.text_secondary"))
+                .onClick(() => {
+                  this.openLink("https://github.com/AeCw/Bilibili-Evolved-V2");
+                })
+            }
+            .width("100%")
+            .padding(16)
+          }
+          ListItem() {
+            Row() {
+              Text("用户隐私声明")
+                .fontSize(16)
+                .fontColor($r("app.color.text_primary"))
+                .layoutWeight(1)
+              SymbolGlyph($r("sys.symbol.chevron_right"))
+                .fontSize(16)
+                .fontColor([$r("app.color.text_secondary")])
+            }
+            .width("100%")
+            .padding(16)
+            .onClick(() => {
+              this.showPrivacySheet = true;
+            })
           }
           ListItem() {
             Row() {
@@ -822,6 +851,52 @@ struct SettingsPage {
       onDisappear: () => {
         this.showWebSheet = false;
       },
+    })
+    .bindContentCover(this.showPrivacySheet, this.privacyDialogContent(), {
+      modalTransition: ModalTransition.DEFAULT,
+      onDisappear: () => {
+        this.showPrivacySheet = false;
+      },
     });
+  }
+
+  @Builder
+  privacyDialogContent() {
+    Column() {
+      Row() {
+        Button({ type: ButtonType.Circle, stateEffect: true }) {
+          SymbolGlyph($r("sys.symbol.xmark"))
+            .fontColor([$r("app.color.text_primary")])
+        }
+        .backgroundColor("transparent")
+        .width(48)
+        .height(48)
+        .onClick(() => {
+          this.showPrivacySheet = false;
+        })
+        Text("用户隐私声明")
+          .fontSize(18)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r("app.color.text_primary"))
+          .layoutWeight(1)
+      }
+      .width("100%")
+      .margin({bottom: 16})
+      .padding({ left: 8, top: 8 })
+      Web({
+        src: "https://agreement-drcn.hispace.dbankcloud.cn/index.html?lang=zh&agreementId=1921757233209701504",
+        controller: this.privacyWebController,
+      })
+        .width("100%")
+        .height("100%")
+        .layoutWeight(1)
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+    }
+    .width("100%")
+    .margin({top:48})
+    .height("100%")
+    .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .backgroundColor($r("app.color.background"));
   }
 }
