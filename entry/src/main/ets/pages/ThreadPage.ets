@@ -35,7 +35,7 @@ struct SpoilerText {
   build() {
     Text(this.text)
       .fontSize($r("app.float.content_text_font"))
-      .fontColor(this.isRevealed ? $r("app.color.text_secondary") : $r("app.color.spoiler_bg"))
+      .fontColor(this.isRevealed ? $r("app.color.text_primary") : $r("app.color.spoiler_bg"))
       .backgroundColor(this.isRevealed ? Color.Transparent : $r("app.color.spoiler_bg"))
       .borderRadius(4)
       .padding({ left: 4, right: 4 })
