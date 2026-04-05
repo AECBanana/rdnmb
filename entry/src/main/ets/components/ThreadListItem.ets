@@ -1,6 +1,7 @@
 import { BoardThread } from "../models/Post";
 import { PostImage } from "./PostImage";
 import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
+import { FontConfig } from "../utils/FontConfig";
 @Component
 export struct ThreadListItem {
   @Prop @Watch("updateRichText") thread: BoardThread = new BoardThread({
@@ -9,6 +10,7 @@ export struct ThreadListItem {
   @Prop @Watch("updateRichText") content: string = "";
   @Prop boardNameMap: Map<number, string> = new Map();
   @Prop isTimeline: boolean = false;
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
   onItemClick?: (threadId: number) => void;
   private richTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
 
@@ -24,7 +26,7 @@ export struct ThreadListItem {
     }
     this.richTextModel.richTextOption = {
       content: displayContent,
-      baseFontSize: $r("app.float.content_text_font"),
+      baseFontSize: FontConfig.getBodyVp(),
       baseFontColor: $r("app.color.text_primary"),
     };
   }

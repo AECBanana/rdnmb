@@ -12,6 +12,7 @@ import { SettingsManager } from "../utils/SettingsManager";
 import { FavoriteThread } from "../models/FavoriteThread";
 import common from "@ohos.app.ability.common";
 import { pasteboard } from "@kit.BasicServicesKit";
+import { FontConfig } from '../utils/FontConfig'
 
 interface ThreadPageParams {
   threadId?: number;
@@ -30,10 +31,11 @@ interface ContentSegment {
 @Component
 struct SpoilerText {
   @Prop text: string = "";
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
 
   build() {
     Text(this.text)
-      .fontSize($r("app.float.content_text_font"))
+      .fontSize(FontConfig.getBodyVp())
       .fontColor($r("app.color.spoiler_bg"))
       .backgroundColor($r("app.color.spoiler_bg"))
       .borderRadius(2)
@@ -132,6 +134,8 @@ struct ThreadDetailPage {
   @State highlightedReplyId: number = 0;
   @State isFavorite: boolean = false;
 
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
+
   private client: AnoBBSClient = new AnoBBSClient();
   private scroller: Scroller = new Scroller();
   private static readonly REPLIES_PER_PAGE: number = 20;
@@ -150,7 +154,7 @@ struct ThreadDetailPage {
     this.isFavorite = this.settingsManager.isThreadFavorite(this.threadId);
     this.threadRichTextModel.richTextOption = {
       content: "",
-      baseFontSize: $r("app.float.content_text_font"),
+      baseFontSize: FontConfig.getBodyVp(),
       baseFontColor: $r("app.color.text_primary"),
     };
     this.threadRichTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
@@ -229,7 +233,7 @@ struct ThreadDetailPage {
     let displayContent: string = this.processContent(text);
     model.richTextOption = {
       content: displayContent,
-      baseFontSize: $r("app.float.content_text_font"),
+      baseFontSize: FontConfig.getBodyVp(),
       baseFontColor: $r("app.color.text_primary"),
     };
     model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
@@ -311,7 +315,7 @@ struct ThreadDetailPage {
       let displayContent: string = this.processContent(textContent);
       this.threadRichTextModel.richTextOption = {
         content: displayContent,
-        baseFontSize: $r("app.float.content_text_font"),
+        baseFontSize: FontConfig.getBodyVp(),
         baseFontColor: $r("app.color.text_primary"),
       };
     }

@@ -1,6 +1,8 @@
 import { common } from "@kit.AbilityKit";
 import { ImageCacheManager } from "../utils/ImageCacheManager";
 import { CookieManager } from "../utils/CookieManager";
+import { SettingsManager } from "../utils/SettingsManager";
+import { FontConfig } from "../utils/FontConfig";
 import { Cookie } from "../models/Cookie";
 import { scanBarcode, scanCore } from "@kit.ScanKit";
 import { BusinessError } from "@kit.BasicServicesKit";
@@ -132,9 +134,11 @@ struct SettingsPage {
   @State showCookieHelp: boolean = false;
   @State appVersion: string = "";
   @State initialCookieHash: string = "";
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
 
   private imageCacheManager: ImageCacheManager = ImageCacheManager.getInstance();
   private cookieManager: CookieManager = CookieManager.getInstance();
+  private settingsManager: SettingsManager = SettingsManager.getInstance();
   private webController: webview.WebviewController = new webview.WebviewController();
   private manualAddDialogController: CustomDialogController | null = null;
   private webCookieCache: Map<string, string> = new Map<string, string>();
@@ -142,6 +146,10 @@ struct SettingsPage {
   aboutToAppear() {
     this.calculateCacheSize();
     this.loadCookies();
+  }
+
+  async onFontScaleChange(scale: number) {
+    await this.settingsManager.setFontScale(scale);
   }
 
   aboutToDisappear(): void {
@@ -370,7 +378,7 @@ struct SettingsPage {
   }
 
   @Builder
-  cookieHelpSheet(){
+  cookieHelpSheet() {
     Column() {
       Row() {
         Text(`帮助`)
@@ -383,8 +391,7 @@ struct SettingsPage {
       .width("100%")
       .padding({ left: 16, right: 16, top: 24, bottom: 24 })
       Scroll() {
-        Image($r("app.media.cookiehelp"))
-          .height("auto")
+        Image($r("app.media.cookiehelp")).height("auto")
       }
       .edgeEffect(EdgeEffect.Spring)
       .width("100%")
@@ -696,6 +703,16 @@ struct SettingsPage {
       .padding({ left: 16, top: 8, bottom: 8 });
   }
 
+  @Builder
+  readingHeader() {
+    Text("阅读")
+      .fontSize(14)
+      .fontWeight(FontWeight.Bold)
+      .fontColor($r("app.color.text_secondary"))
+      .width("100%")
+      .padding({ left: 16, top: 8, bottom: 8 });
+  }
+
   build() {
     Column() {
       Row() {
@@ -724,7 +741,7 @@ struct SettingsPage {
         onDisappear: () => {
           this.showCookieHelp = false;
         },
-      });
+      })
       List() {
         ListItemGroup({ header: this.cookieHeader }) {
           if (this.cookies.length === 0) {
@@ -826,6 +843,52 @@ struct SettingsPage {
             .padding(16)
           }
         }
+        ListItemGroup({ header: this.readingHeader }) {
+          ListItem() {
+            Column() {
+              Column() {
+                Text("字体大小")
+                  .fontSize(16)
+                  .fontColor($r("app.color.text_primary"))
+                Text(this.fontScale.toFixed(2) + "x")
+                  .fontSize(12)
+                  .fontColor($r("app.color.text_secondary"))
+                  .margin({ top: 4 })
+              }
+              .width("100%")
+              .alignItems(HorizontalAlign.Start)
+
+              Slider({
+                value: this.fontScale,
+                min: 0.75,
+                max: 1.5,
+                step: 0.05,
+                style: SliderStyle.InSet,
+              })
+                .blockColor(Color.White)
+                .trackColor($r("app.color.background"))
+                .selectedColor($r("app.color.primary"))
+                .width("100%")
+                .onChange((value: number) => {
+                  this.onFontScaleChange(value);
+                })
+            }
+            .backgroundColor($r("app.color.card_background"))
+            .borderRadius(16)
+            .shadow({ radius: 4, color: $r("app.color.card_shadow") })
+            .width("100%")
+            .padding(16)
+          }
+          ListItem(){
+            Text("调整后需要手动重启应用生效。")
+              .width("100%")
+              .fontSize(14)
+              .fontColor($r("app.color.text_secondary"))
+              .background(Color.Transparent)
+              .padding({ left: 16, right: 16 })
+              .margin({ top: 4 })
+          }
+        }
         ListItemGroup({ header: this.aboutHeader }) {
           ListItem() {
             Row() {
@@ -868,12 +931,13 @@ struct SettingsPage {
             .onClick(() => {
               this.showPrivatePage = true;
             })
-
           }
           ListItem() {
             Row() {
-              Text("“人，是会思考的芦苇。”——帕斯卡，《思想录》\n" +
-                "\"开放包容 理性客观 有事说事 就事论事 顺猴者昌 逆猴者亡\"")
+              Text(
+                "“人，是会思考的芦苇。”——帕斯卡，《思想录》\n" +
+                  '"开放包容 理性客观 有事说事 就事论事 顺猴者昌 逆猴者亡"',
+              )
                 .fontSize(12)
                 .fontColor($r("app.color.text_primary"))
             }
@@ -896,7 +960,7 @@ struct SettingsPage {
         onDisappear: () => {
           this.showWebSheet = false;
         },
-      });
+      })
     }
     .width("100%")
     .height("100%")

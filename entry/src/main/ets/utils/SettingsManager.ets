@@ -1,6 +1,7 @@
 import { preferences } from "@kit.ArkData";
 import { common } from "@kit.AbilityKit";
 import { FavoriteThread, FavoriteThreadRaw } from "../models/FavoriteThread";
+import { FontConfig } from "./FontConfig";
 
 export class SettingsManager {
   private static instance: SettingsManager;
@@ -13,11 +14,13 @@ export class SettingsManager {
   private static readonly FAVORITE_THREADS_KEY: string = "favorite_threads";
   private static readonly REPLY_DRAFT_PREFIX: string = "reply_draft_";
   private static readonly POST_DRAFT_PREFIX: string = "post_draft_";
+  private static readonly FONT_SCALE_KEY: string = "font_scale";
 
   private readAnnouncementIds: number[] = [];
   private favoriteEmojis: string[] = [];
   private emojiCategoryIndex: number = 0;
   private favoriteThreads: FavoriteThread[] = [];
+  private fontScale: number = 1.0;
   private initPromise: Promise<void> | null = null;
 
   private constructor() {}
@@ -45,6 +48,7 @@ export class SettingsManager {
       await this.loadFavoriteEmojis();
       await this.loadEmojiCategory();
       await this.loadFavoriteThreads();
+      await this.loadFontScale();
       console.info(
         `[SettingsManager] Init complete, readAnnouncementIds: ${this.readAnnouncementIds.length}, favoriteEmojis: ${this.favoriteEmojis.length}, favoriteThreads: ${this.favoriteThreads.length}`,
       );
@@ -264,6 +268,45 @@ export class SettingsManager {
     } else {
       await this.addFavoriteThread(thread);
       return true;
+    }
+  }
+
+  private async loadFontScale(): Promise<void> {
+    if (!this.preferencesStore) {
+      FontConfig.init(1.0);
+      return;
+    }
+    try {
+      const saved: number = (await this.preferencesStore.get(
+        SettingsManager.FONT_SCALE_KEY,
+        1.0,
+      )) as number;
+      this.fontScale = saved;
+      FontConfig.init(this.fontScale);
+      console.info(`[SettingsManager] Loaded fontScale: ${this.fontScale}`);
+    } catch (error) {
+      console.error("[SettingsManager] Load fontScale failed:", error);
+      this.fontScale = 1.0;
+      FontConfig.init(1.0);
+    }
+  }
+
+  getFontScale(): number {
+    return this.fontScale;
+  }
+
+  async setFontScale(scale: number): Promise<void> {
+    this.fontScale = scale;
+    FontConfig.setScale(scale);
+    if (!this.preferencesStore) {
+      return;
+    }
+    try {
+      await this.preferencesStore.put(SettingsManager.FONT_SCALE_KEY, scale);
+      await this.preferencesStore.flush();
+      console.info(`[SettingsManager] Saved fontScale: ${scale}`);
+    } catch (error) {
+      console.error("[SettingsManager] Save fontScale failed:", error);
     }
   }
 

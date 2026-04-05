@@ -3,6 +3,7 @@ import { PostImage } from "./PostImage";
 import { HPRichTextV2, RichTextOptionModelV2 } from "@ohasasugar/hp-richtext";
 import common from "@ohos.app.ability.common";
 import { pasteboard } from "@kit.BasicServicesKit";
+import { FontConfig } from "../utils/FontConfig";
 
 interface LinkPressEvent {
   href?: string;
@@ -18,10 +19,11 @@ interface ContentSegment {
 @Component
 struct SpoilerText {
   @Prop text: string = "";
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
 
   build() {
     Text(this.text)
-      .fontSize($r("app.float.content_text_font"))
+      .fontSize(FontConfig.getBodyVp())
       .fontColor($r("app.color.spoiler_bg"))
       .backgroundColor($r("app.color.spoiler_bg"))
       .borderRadius(2)
@@ -46,6 +48,7 @@ export struct ReplyItem {
   @Prop content: string = "";
   @Prop threadUserid?: string = "";
   @Prop isHighlighted: boolean = false;
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
   onReplyClick?: (replyId: string) => void;
   onJumpToReply?: (replyId: string) => void;
   private richTextModel: RichTextOptionModelV2 = new RichTextOptionModelV2();
@@ -125,7 +128,7 @@ export struct ReplyItem {
     let displayContent: string = this.processContent(text);
     model.richTextOption = {
       content: displayContent,
-      baseFontSize: $r("app.float.content_text_font"),
+      baseFontSize: FontConfig.getBodyVp(),
       baseFontColor: $r("app.color.text_primary"),
     };
     model.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
@@ -172,7 +175,7 @@ export struct ReplyItem {
     let displayContent: string = this.processContent(textContent);
     this.richTextModel.richTextOption = {
       content: displayContent,
-      baseFontSize: $r("app.float.content_text_font"),
+      baseFontSize: FontConfig.getBodyVp(),
       baseFontColor: $r("app.color.text_primary"),
     };
     this.richTextModel.onLinkPress = (e: LinkPressEvent): LinkPressEvent => {
