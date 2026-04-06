@@ -146,6 +146,7 @@ struct SettingsPage {
   aboutToAppear() {
     this.calculateCacheSize();
     this.loadCookies();
+    this.getAppVersion();
   }
 
   async onFontScaleChange(scale: number) {
@@ -163,11 +164,12 @@ struct SettingsPage {
   async getAppVersion() {
     try {
       const bundleFlags = bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT;
-      const bundleInfo = await bundleManager.getBundleInfo("com.ohos.cookies", bundleFlags);
-
-      const version = bundleInfo.versionName;
+      const bundleInfo = await bundleManager.getBundleInfo("rino.ink.anobbs", bundleFlags);
+      this.appVersion = bundleInfo.versionName;
+      console.info(`[SettingsPage] App version: ${this.appVersion}`);
     } catch (error) {
-      console.error(error);
+      console.error("[SettingsPage] Get app version failed:", error);
+      this.appVersion = "1.0.0";
     }
   }
 
@@ -783,16 +785,6 @@ struct SettingsPage {
                   }
                   .alignItems(HorizontalAlign.Start)
                   .layoutWeight(1)
-                  if (this.selectedCookieHash !== cookie.cookieHash) {
-                    Button("使用")
-                      .fontSize(12)
-                      .fontColor($r("app.color.primary"))
-                      .backgroundColor("transparent")
-                      .margin({ right: 8 })
-                      .onClick(() => {
-                        this.selectCookie(cookie.cookieHash);
-                      });
-                  }
                   Button("删除")
                     .fontSize(12)
                     .fontColor("#ff6b6b")
@@ -800,6 +792,16 @@ struct SettingsPage {
                     .onClick(() => {
                       this.deleteCookie(cookie.cookieHash);
                     })
+                  if (this.selectedCookieHash !== cookie.cookieHash) {
+                    Button("使用")
+                      .fontSize(12)
+                      .fontColor($r("app.color.primary"))
+                      .backgroundColor("transparent")
+                      .onClick(() => {
+                        this.selectCookie(cookie.cookieHash);
+                      });
+                  }
+
                 }
                 .margin({ bottom: 16 })
                 .width("100%")
@@ -857,7 +859,6 @@ struct SettingsPage {
               }
               .width("100%")
               .alignItems(HorizontalAlign.Start)
-
               Slider({
                 value: this.fontScale,
                 min: 0.75,
@@ -879,7 +880,7 @@ struct SettingsPage {
             .width("100%")
             .padding(16)
           }
-          ListItem(){
+          ListItem() {
             Text("调整后需要手动重启应用生效。")
               .width("100%")
               .fontSize(14)
@@ -896,7 +897,7 @@ struct SettingsPage {
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("1")
+              Text(this.appVersion)
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }

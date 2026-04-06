@@ -57,6 +57,9 @@
         "name": "ohos.permission.STORE_PERSISTENT_DATA"
       },
       {
+        "name": "ohos.permission.GET_BUNDLE_INFO"
+      },
+      {
         "name": "ohos.permission.CAMERA",
         "reason": "$string:camera_permission_reason",
         "usedScene": {

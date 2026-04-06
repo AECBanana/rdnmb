@@ -12,8 +12,17 @@ interface LinkPressEvent {
 }
 
 interface ContentSegment {
-  type: "text" | "spoiler";
+  type: "text" | "spoiler" | "roll" | "rollText";
   content: string;
+  rollResult?: number;
+  rollMin?: number;
+  rollMax?: number;
+}
+
+interface RollParsedResult {
+  result: number;
+  min: number;
+  max: number;
 }
 
 @Component
@@ -40,6 +49,80 @@ struct SpoilerText {
       });
   }
 }
+
+@Component
+struct RollResult {
+  @Prop rollResult: number = 0;
+  @Prop rollMin: number = 0;
+  @Prop rollMax: number = 9;
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
+
+  build() {
+    if (this.rollMin === 0 && this.rollMax === 9) {
+      Text(`[roll点结果：${this.rollResult}]`)
+        .fontSize(FontConfig.getBodyVp())
+        .fontColor("#9C27B0")
+        .fontWeight(FontWeight.Bold);
+    } else {
+      Text(`[roll点结果(${this.rollMin}-${this.rollMax})：${this.rollResult}]`)
+        .fontSize(FontConfig.getBodyVp())
+        .fontColor("#9C27B0")
+        .fontWeight(FontWeight.Bold);
+    }
+  }
+}
+
+@Component
+struct RollText {
+  @Prop text: string = "";
+  @Prop rollResult: number = 0;
+  @Prop rollMin: number = 0;
+  @Prop rollMax: number = 0;
+  @StorageProp(FontConfig.APP_STORAGE_SCALE) fontScale: number = 1.0;
+  @State private isHtml: boolean = false;
+  @State private parsedResult: RollParsedResult | null = null;
+
+  aboutToAppear(): void {
+    this.isHtml = this.text.includes("<b>") && this.text.includes("<small>");
+    if (this.isHtml) {
+      this.parsedResult = this.parseHtmlFormat();
+    }
+  }
+
+  private parseHtmlFormat(): RollParsedResult | null {
+    const pattern: RegExp = /<b>(\d+)<\/b><small>\[(\d+),(\d+)\]<\/small>/;
+    const match: RegExpMatchArray | null = this.text.match(pattern);
+    if (match !== null && match.length === 4) {
+      const result: RollParsedResult = {
+        result: parseInt(match[1]),
+        min: parseInt(match[2]),
+        max: parseInt(match[3]),
+      };
+      return result;
+    }
+    return null;
+  }
+
+  build() {
+    if (this.isHtml && this.parsedResult !== null) {
+      Row() {
+        Text(`${this.parsedResult.result}`)
+          .fontSize(FontConfig.getBodyVp())
+          .fontColor("#9C27B0")
+          .fontWeight(FontWeight.Bold)
+        Text(`[${this.parsedResult.min},${this.parsedResult.max}]`)
+          .fontSize(FontConfig.getTertiaryVp())
+          .fontColor("#9C27B0")
+          .margin({ left: 2 })
+      }
+    } else {
+      Text(this.text)
+        .fontSize(FontConfig.getBodyVp())
+        .fontColor("#9C27B0")
+        .fontWeight(FontWeight.Bold);
+    }
+  }
+}
 @Component
 export struct ReplyItem {
   @Prop reply: Post = new Post({
@@ -63,8 +146,57 @@ export struct ReplyItem {
   parseContent(): void {
     let rawContent: string = this.content.length > 0 ? this.content : this.reply.content;
     let content: string = rawContent.replace(/\\n/g, "").replace(/\n/g, "");
-    this.contentSegments = this.splitContentBySpoilers(content);
+    const rollSegment: ContentSegment | null = this.parseRollContent(content);
+    if (rollSegment !== null) {
+      this.contentSegments = [rollSegment];
+    } else {
+      this.contentSegments = this.splitContentBySpoilers(content);
+    }
     this.updateRichText();
+  }
+
+  parseRollContent(content: string): ContentSegment | null {
+    const trimmed: string = content.trim();
+    if (trimmed.toLowerCase() === "r") {
+      const lastDigit: number = this.getLastDigitOfId();
+      return {
+        type: "roll",
+        content: content,
+        rollResult: lastDigit,
+        rollMin: 0,
+        rollMax: 9,
+      };
+    }
+    const rangePattern: RegExp = /^roll点结果\[(\d+),(\d+)\]$/;
+    const match: RegExpMatchArray | null = trimmed.match(rangePattern);
+    if (match !== null && match.length === 3) {
+      const min: number = parseInt(match[1]);
+      const max: number = parseInt(match[2]);
+      const result: number = this.generateRollResult(min, max);
+      return {
+        type: "roll",
+        content: content,
+        rollResult: result,
+        rollMin: min,
+        rollMax: max,
+      };
+    }
+    return null;
+  }
+
+  generateRollResult(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  isRollContent(content: string): boolean {
+    const trimmed: string = content.trim().toLowerCase();
+    return trimmed === "r";
+  }
+
+  getLastDigitOfId(): number {
+    const idStr: string = String(this.reply.id);
+    const lastChar: string = idStr.charAt(idStr.length - 1);
+    return parseInt(lastChar);
   }
 
   splitContentBySpoilers(content: string): ContentSegment[] {
@@ -75,10 +207,10 @@ export struct ReplyItem {
 
     while ((match = spoilerPattern.exec(content)) !== null) {
       if (match.index > lastIndex) {
-        segments.push({
-          type: "text",
-          content: content.substring(lastIndex, match.index),
-        });
+        const textSegments: ContentSegment[] = this.splitTextByRollPatterns(
+          content.substring(lastIndex, match.index),
+        );
+        segments.push(...textSegments);
       }
       segments.push({
         type: "spoiler",
@@ -88,9 +220,65 @@ export struct ReplyItem {
     }
 
     if (lastIndex < content.length) {
+      const textSegments: ContentSegment[] = this.splitTextByRollPatterns(
+        content.substring(lastIndex),
+      );
+      segments.push(...textSegments);
+    }
+
+    return segments;
+  }
+
+  splitTextByRollPatterns(text: string): ContentSegment[] {
+    const segments: ContentSegment[] = [];
+    const rollPattern: RegExp = /roll点结果\[(\d+),(\d+)\]/g;
+    const rollHtmlPattern: RegExp = /<b>(\d+)<\/b><small>\[(\d+),(\d+)\]<\/small>/g;
+    let lastIndex: number = 0;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = rollHtmlPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        segments.push({
+          type: "text",
+          content: text.substring(lastIndex, match.index),
+        });
+      }
+      segments.push({
+        type: "rollText",
+        content: match[0],
+        rollResult: parseInt(match[1]),
+        rollMin: parseInt(match[2]),
+        rollMax: parseInt(match[3]),
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    rollHtmlPattern.lastIndex = 0;
+    while ((match = rollPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        segments.push({
+          type: "text",
+          content: text.substring(lastIndex, match.index),
+        });
+      }
+      segments.push({
+        type: "rollText",
+        content: match[0],
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
       segments.push({
         type: "text",
-        content: content.substring(lastIndex),
+        content: text.substring(lastIndex),
+      });
+    }
+
+    if (segments.length === 0) {
+      segments.push({
+        type: "text",
+        content: text,
       });
     }
 
@@ -117,6 +305,24 @@ export struct ReplyItem {
   hasSpoiler(): boolean {
     for (const segment of this.contentSegments) {
       if (segment.type === "spoiler") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  hasRoll(): boolean {
+    for (const segment of this.contentSegments) {
+      if (segment.type === "roll") {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  hasRollText(): boolean {
+    for (const segment of this.contentSegments) {
+      if (segment.type === "rollText") {
         return true;
       }
     }
@@ -399,15 +605,32 @@ export struct ReplyItem {
               .margin({ top: 10 });
           }
           Column() {
-            if (this.hasSpoiler()) {
+            if (this.hasRoll()) {
+              ForEach(this.contentSegments, (segment: ContentSegment, index: number) => {
+                if (segment.type === "roll" && segment.rollResult !== undefined) {
+                  RollResult({
+                    rollResult: segment.rollResult,
+                    rollMin: segment.rollMin ?? 0,
+                    rollMax: segment.rollMax ?? 9,
+                  });
+                }
+              });
+            } else if (this.hasSpoiler() || this.hasRollText()) {
               Flex({ wrap: FlexWrap.Wrap, alignItems: ItemAlign.Start }) {
                 ForEach(this.contentSegments, (segment: ContentSegment, index: number) => {
                   if (segment.type === "text") {
                     HPRichTextV2({
                       richTextModel: this.getRichTextModelForText(segment.content),
                     });
-                  } else {
+                  } else if (segment.type === "spoiler") {
                     SpoilerText({ text: segment.content });
+                  } else if (segment.type === "rollText") {
+                    RollText({
+                      text: segment.content,
+                      rollResult: segment.rollResult ?? 0,
+                      rollMin: segment.rollMin ?? 0,
+                      rollMax: segment.rollMax ?? 0,
+                    });
                   }
                 })
               }.width("100%");

@@ -5,26 +5,26 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B9AAFABB726490C585CE03B62B03785E18149431DA9EE3FDB47CE002C1646AC0FFC9E7C9C45116A",
-          "profile": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p7b",
-          "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\AeCw\\.ohos\\config\\default_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p12",
-          "storePassword": "0000001B6A9C27E39617F36BF39016BE12A1E8E8BE1E56BBBD835061A4EB74A74B55B43371E858F1EB346D"
-        }
-      },
-      {
-        "name": "release",
-        "type": "HarmonyOS",
-        "material": {
           "certpath": "C:/Users/AeCw/Downloads/hmos.cer",
           "keyAlias": "114514",
-          "keyPassword": "00000030DF8FABD3BEBB761717E01526F6237114B73FE363987C04936AFE9D1112096DA52743A83B23B70A8F55A0473008E6EDCE13651935753673BFE5387DBB",
+          "keyPassword": "000000309FDBF98AA7D1CC7A1AFA2B87B6D2912BF822C562FE09A9A9F90572869FB229FF5C76AEBEC1518B18190E4B49430BAB6468612B4F047A2EC4C13C5EB1",
           "profile": "C:/Users/AeCw/Downloads/testRelease.p7b",
           "signAlg": "SHA256withECDSA",
           "storeFile": "C:/Users/AeCw/Downloads/hmos.p12",
-          "storePassword": "00000030030772BCC2D4887C7DA23C9B405BED9C52FEC6D36B9D0EBCBAC1CAF5F8206D802313A24E788C9B7936C8A968166351EF9B7FA53C2674CAB3E43C0B6A"
+          "storePassword": "00000030D6C5E800318857E040B351461C21FB1C6CE5A7B1BFCD65851CAEFBFD6407FEABC31613A60C754D0F998AF02A279C017BE5C83DA1672B8F91F5A98A5B"
+        }
+      },
+      {
+        "name": "debug",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:/Users/AeCw/.ohos/config/debug_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BC1D1CD472E811EFE27965F95E69D64ADF3B032C29B01764E2AA5C56C88E0A819D929DD0C02904A",
+          "profile": "C:/Users/AeCw/.ohos/config/debug_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:/Users/AeCw/.ohos/config/debug_anobbs_typ3qbv01PMjvrhe-uLwnDuzeQ8BHqs2z_Wc4IWkk9U=.p12",
+          "storePassword": "0000001BDF6BFCC9BEFAD5CAC908467B9BEBC14D56B67EF3765CF3F4E9C16813C63B175BA86FE9502151F2"
         }
       }
     ],
