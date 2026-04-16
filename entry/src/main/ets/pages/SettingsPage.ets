@@ -20,6 +20,7 @@ struct ManualAddCookieDialog {
 
   build() {
     Column() {
+      Column(){
       Text("手动添加饼干")
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
@@ -78,9 +79,13 @@ struct ManualAddCookieDialog {
             }
           })
       }.width("100%")
+      }.margin(16)
+      .padding(16)
+      .borderRadius(16)
+      .backgroundColor($r("app.color.card_background"))
     }
     .width("100%")
-    .padding({ left: 8, right: 8, top: 44, bottom: 8 });
+    .padding(8);
   }
 
   static parseQRContent(qrContent: string): ManualAddCookieDialog.ParsedCookie {
@@ -737,13 +742,6 @@ struct SettingsPage {
       }
       .width("100%")
       .padding({ left: 8, right: 8, top: 44, bottom: 8 })
-      // 不是哥们
-      .bindSheet(this.showCookieHelp, this.cookieHelpSheet(), {
-        modalTransition: ModalTransition.DEFAULT,
-        onDisappear: () => {
-          this.showCookieHelp = false;
-        },
-      })
       List() {
         ListItemGroup({ header: this.cookieHeader }) {
           if (this.cookies.length === 0) {
@@ -906,11 +904,11 @@ struct SettingsPage {
           }
           ListItem() {
             Row() {
-              Text("开发者")
+              Text("反馈问题")
                 .fontSize(16)
                 .fontColor($r("app.color.text_primary"))
                 .layoutWeight(1)
-              Text("AeCw")
+              Text("Github 󰃙")
                 .fontSize(14)
                 .fontColor($r("app.color.text_secondary"))
             }
@@ -955,23 +953,32 @@ struct SettingsPage {
       .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
       .backgroundColor($r("app.color.background"))
       .divider({ strokeWidth: 1, color: $r("app.color.divider") })
-      // 2个bindContent放一起第一个会出bug,只能分开，傻逼吧
-      .bindContentCover(this.showPrivatePage, this.privateContent(), {
+      // bindsheet
+      Column()
+        .bindSheet(this.showCookieHelp, this.cookieHelpSheet(), {
+          modalTransition: ModalTransition.DEFAULT,
+          onDisappear: () => {
+            this.showCookieHelp = false;
+          },
+        })
+      Column()
+        .bindContentCover(this.showPrivatePage, this.privateContent(), {
         modalTransition: ModalTransition.DEFAULT,
         onDisappear: () => {
           this.showWebSheet = false;
         },
       })
+      Column()
+        .bindContentCover(this.showWebSheet, this.webDialogContent(), {
+          modalTransition: ModalTransition.DEFAULT,
+          onDisappear: () => {
+            this.showWebSheet = false;
+          },
+        })
     }
     .width("100%")
     .height("100%")
     .backgroundColor($r("app.color.background"))
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
-    .bindContentCover(this.showWebSheet, this.webDialogContent(), {
-      modalTransition: ModalTransition.DEFAULT,
-      onDisappear: () => {
-        this.showWebSheet = false;
-      },
-    });
   }
 }
